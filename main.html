@@ -3,26 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <title>Nachhilfe</title>
-  <style>
-    body {
-      margin: 0;
-      padding: 60px 40px;
-      font-family: -apple-system, sans-serif;
-      background: transparent;
-    }
-    .titlebar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 40px;
-      -webkit-app-region: drag;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="titlebar"></div>
-  <h1>Nachhilfe</h1>
-  <p>Hier entsteht das große Fenster.</p>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="brand">Nachhilfe<span>.</span></div>
+      <div class="brand-sub">von Darleen</div>
+
+      <button class="nav-item active"><span class="num">01</span>Übersicht</button>
+      <button class="nav-item"><span class="num">02</span>Schüler</button>
+      <button class="nav-item"><span class="num">03</span>Stundenplan</button>
+      <button class="nav-item"><span class="num">04</span>Rechnungen</button>
+      <button class="nav-item"><span class="num">05</span>Schulaufgaben</button>
+      <button class="nav-item"><span class="num">06</span>Aufgaben</button>
+
+      <div class="spacer"></div>
+
+      <button class="nav-item"><span class="num">07</span>Archiv</button>
+      <button class="nav-item"><span class="num">08</span>Einstellungen</button>
+    </nav>
+
+    <main class="main">
+      <div class="page-header">
+        <div>
+          <div class="eyebrow">Guten Abend, Darleen</div>
+          <h1>Mittwoch, <em>28.</em> Oktober</h1>
+        </div>
+        <button class="btn btn-primary">Neuer Schüler →</button>
+      </div>
+
+      <div class="placeholder">Hier kommt bald deine Übersicht hin.</div>
+    </main>
+  </div>
 </body>
 </html>
