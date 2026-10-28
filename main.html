@@ -23,7 +23,7 @@
       <div class="spacer"></div>
 
       <button class="nav-item" data-page="archive"><span class="num">07</span>Archiv</button>
-      <button class="nav-item" data-page="placeholder"><span class="num">08</span>Einstellungen</button>
+      <button class="nav-item" data-page="settings"><span class="num">08</span>Einstellungen</button>
     </nav>
 
     <main class="main">
@@ -54,6 +54,40 @@
       <section class="page" id="page-archive" hidden>
         <div class="student-list" id="archive-list"></div>
         <div class="empty" id="archive-empty">Das Archiv ist leer.</div>
+      </section>
+
+      <section class="page" id="page-settings" hidden>
+        <form class="form" id="settings-form">
+
+          <fieldset class="form-section">
+            <legend class="section-title"><span class="num">I</span>Preise</legend>
+            <label class="field field-medium">
+              <span class="label">Stundensatz für 60 Minuten</span>
+              <span class="input-unit">
+                <input type="number" name="hourlyRate" min="0" step="0.5" required>
+                <span>€</span>
+              </span>
+            </label>
+            <p class="hint" id="rate-preview"></p>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Speichern</button>
+              <span class="hand saved-note" id="settings-saved" hidden>Gespeichert!</span>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend class="section-title"><span class="num">II</span>App</legend>
+            <label class="switch-row">
+              <input type="checkbox" id="autostart-toggle">
+              <span class="switch"></span>
+              <span class="switch-text">
+                <strong>Beim Anmelden starten</strong>
+                <small>Die App startet unauffällig mit 📚 in der Menüleiste, ohne großes Fenster.</small>
+              </span>
+            </label>
+          </fieldset>
+
+        </form>
       </section>
 
       <section class="page" id="page-student-form" hidden>

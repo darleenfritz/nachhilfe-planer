@@ -4,6 +4,7 @@ const COLORS = ['#FF2E88', '#C6F432', '#3D8BF2', '#F5A623', '#9B6BFF', '#22B573'
 let data = { students: [], settings: { hourlyRate: 24 } };
 let canSave = true;
 let editingId = null;
+let savedTimer = null;
 
 const navItems = document.querySelectorAll('.nav-item');
 const studentsNav = document.querySelector('[data-page="students"]');
@@ -26,6 +27,10 @@ const studentsEmpty = document.getElementById('students-empty');
 const archiveList = document.getElementById('archive-list');
 const archiveEmpty = document.getElementById('archive-empty');
 const archiveBtn = document.getElementById('archive-btn');
+const settingsForm = document.getElementById('settings-form');
+const ratePreview = document.getElementById('rate-preview');
+const settingsSaved = document.getElementById('settings-saved');
+const autostartToggle = document.getElementById('autostart-toggle');
 
 function greeting(hour) {
   if (hour < 11) return 'Guten Morgen';
@@ -41,8 +46,8 @@ function formatDate(isoString) {
   return new Date(isoString).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function priceFor(minutes) {
-  return data.settings.hourlyRate * minutes / 60;
+function priceFor(minutes, rate = data.settings.hourlyRate) {
+  return rate * minutes / 60;
 }
 
 function fullName(student) {
@@ -61,13 +66,13 @@ async function persist(change) {
     alert('Deine Daten konnten beim Start nicht geladen werden. Damit nichts überschrieben wird, ist Speichern gerade gesperrt.');
     return false;
   }
-  const before = structuredClone(data.students);
+  const before = structuredClone(data);
   change();
   try {
     await window.api.saveData(data);
     return true;
   } catch (error) {
-    data.students = before;
+    data = before;
     alert(`Speichern hat nicht geklappt: ${error.message}`);
     return false;
   }
@@ -81,7 +86,7 @@ function showPage(id) {
   pages.forEach((page) => {
     page.hidden = page.id !== `page-${id}`;
   });
-  newStudentBtn.hidden = id === 'student-form';
+  newStudentBtn.hidden = id === 'student-form' || id === 'settings';
 }
 
 function openOverview() {
@@ -112,6 +117,20 @@ function openArchive() {
   title.innerHTML = 'Archiv<em>.</em>';
   renderArchive();
   showPage('archive');
+}
+
+async function openSettings() {
+  eyebrow.textContent = 'Deine App';
+  title.innerHTML = 'Einstellungen<em>.</em>';
+  settingsForm.elements.hourlyRate.value = data.settings.hourlyRate;
+  updateRatePreview();
+  settingsSaved.hidden = true;
+  showPage('settings');
+  try {
+    autostartToggle.checked = await window.api.getAutostart();
+  } catch (error) {
+    autostartToggle.disabled = true;
+  }
 }
 
 function openForm(student = null) {
@@ -152,6 +171,15 @@ function updateArt() {
 function updatePrice() {
   const minutes = Number(form.elements.dauer.value);
   pricePreview.textContent = `${formatEuro(priceFor(minutes))} pro Stunde, bei ${formatEuro(data.settings.hourlyRate)} für 60 Minuten`;
+}
+
+function updateRatePreview() {
+  const rate = Number(settingsForm.elements.hourlyRate.value);
+  if (!Number.isFinite(rate) || rate < 0) {
+    ratePreview.textContent = 'Bitte gib einen gültigen Betrag ein.';
+    return;
+  }
+  ratePreview.textContent = `Eine 50-Minuten-Stunde kostet damit ${formatEuro(priceFor(50, rate))}, eine 45-Minuten-Stunde ${formatEuro(priceFor(45, rate))}.`;
 }
 
 function addTermin(termin = null) {
@@ -280,8 +308,9 @@ function archivedRow(student) {
   const restoreBtn = el('button', 'btn btn-small', 'Wiederherstellen');
   restoreBtn.addEventListener('click', async () => {
     const saved = await persist(() => {
-      student.archiviert = false;
-      delete student.archiviertAm;
+      const target = data.students.find((s) => s.id === student.id);
+      target.archiviert = false;
+      delete target.archiviertAm;
     });
     if (saved) renderArchive();
   });
@@ -316,6 +345,7 @@ navItems.forEach((item) => {
     if (page === 'overview') openOverview();
     else if (page === 'students') openStudents();
     else if (page === 'archive') openArchive();
+    else if (page === 'settings') openSettings();
     else openPlaceholder(item.lastChild.textContent.trim());
   });
 });
@@ -334,8 +364,9 @@ archiveBtn.addEventListener('click', async () => {
   if (!confirm(`${fullName(student)} ins Archiv verschieben? Du kannst den Schüler dort jederzeit wiederherstellen.`)) return;
 
   const saved = await persist(() => {
-    student.archiviert = true;
-    student.archiviertAm = new Date().toISOString();
+    const target = data.students.find((s) => s.id === editingId);
+    target.archiviert = true;
+    target.archiviertAm = new Date().toISOString();
   });
   if (saved) {
     setActiveNav(studentsNav);
@@ -371,6 +402,38 @@ form.addEventListener('submit', async (event) => {
   if (saved) {
     setActiveNav(studentsNav);
     openStudents();
+  }
+});
+
+settingsForm.addEventListener('input', () => {
+  updateRatePreview();
+  settingsSaved.hidden = true;
+});
+
+settingsForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const rate = Number(settingsForm.elements.hourlyRate.value);
+  if (!Number.isFinite(rate) || rate < 0) return;
+
+  const saved = await persist(() => {
+    data.settings.hourlyRate = rate;
+  });
+
+  if (saved) {
+    settingsSaved.hidden = false;
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => {
+      settingsSaved.hidden = true;
+    }, 2500);
+  }
+});
+
+autostartToggle.addEventListener('change', async () => {
+  try {
+    autostartToggle.checked = await window.api.setAutostart(autostartToggle.checked);
+  } catch (error) {
+    autostartToggle.checked = !autostartToggle.checked;
+    alert(`Der Autostart konnte nicht geändert werden: ${error.message}`);
   }
 });
 

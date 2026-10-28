@@ -33,6 +33,15 @@ function saveData(data) {
   fs.renameSync(temp, file);
 }
 
+function getAutostart() {
+  return app.getLoginItemSettings().openAtLogin;
+}
+
+function setAutostart(enabled) {
+  app.setLoginItemSettings({ openAtLogin: enabled });
+  return getAutostart();
+}
+
 function openMainWindow() {
   if (mainWindow) {
     mainWindow.show();
@@ -130,3 +139,5 @@ app.on('window-all-closed', () => {});
 ipcMain.on('open-main-window', openMainWindow);
 ipcMain.handle('load-data', () => loadData());
 ipcMain.handle('save-data', (event, data) => saveData(data));
+ipcMain.handle('get-autostart', () => getAutostart());
+ipcMain.handle('set-autostart', (event, enabled) => setAutostart(enabled));
