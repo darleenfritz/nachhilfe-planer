@@ -13,17 +13,17 @@
       <div class="brand">Nachhilfe<span>.</span></div>
       <div class="brand-sub">von Darleen</div>
 
-      <button class="nav-item active"><span class="num">01</span>Übersicht</button>
-      <button class="nav-item"><span class="num">02</span>Schüler</button>
-      <button class="nav-item"><span class="num">03</span>Stundenplan</button>
-      <button class="nav-item"><span class="num">04</span>Rechnungen</button>
-      <button class="nav-item"><span class="num">05</span>Schulaufgaben</button>
-      <button class="nav-item"><span class="num">06</span>Aufgaben</button>
+      <button class="nav-item active" data-page="overview"><span class="num">01</span>Übersicht</button>
+      <button class="nav-item" data-page="students"><span class="num">02</span>Schüler</button>
+      <button class="nav-item" data-page="placeholder"><span class="num">03</span>Stundenplan</button>
+      <button class="nav-item" data-page="placeholder"><span class="num">04</span>Rechnungen</button>
+      <button class="nav-item" data-page="placeholder"><span class="num">05</span>Schulaufgaben</button>
+      <button class="nav-item" data-page="placeholder"><span class="num">06</span>Aufgaben</button>
 
       <div class="spacer"></div>
 
-      <button class="nav-item"><span class="num">07</span>Archiv</button>
-      <button class="nav-item"><span class="num">08</span>Einstellungen</button>
+      <button class="nav-item" data-page="placeholder"><span class="num">07</span>Archiv</button>
+      <button class="nav-item" data-page="placeholder"><span class="num">08</span>Einstellungen</button>
     </nav>
 
     <main class="main">
@@ -32,12 +32,138 @@
           <div class="eyebrow">Guten Abend, Darleen</div>
           <h1>Mittwoch, <em>28.</em> Oktober</h1>
         </div>
-        <button class="btn btn-primary">Neuer Schüler →</button>
+        <button class="btn btn-primary" id="new-student-btn">Neuer Schüler →</button>
       </div>
 
-      <div class="placeholder">Hier kommt bald deine Übersicht hin.</div>
+      <section class="page" id="page-overview">
+        <div class="placeholder">Hier kommt bald deine Übersicht hin.</div>
+      </section>
+
+      <section class="page" id="page-placeholder" hidden>
+        <div class="placeholder" id="placeholder-text"></div>
+      </section>
+
+      <section class="page" id="page-students" hidden>
+        <div class="student-list" id="student-list"></div>
+        <div class="empty" id="students-empty">
+          Noch keine Schüler angelegt.
+          <span class="hand">Leg deinen ersten an!</span>
+        </div>
+      </section>
+
+      <section class="page" id="page-student-form" hidden>
+        <form class="form" id="student-form">
+
+          <fieldset class="form-section">
+            <legend class="section-title"><span class="num">I</span>Person</legend>
+            <div class="field-row">
+              <label class="field">
+                <span class="label">Vorname</span>
+                <input type="text" name="vorname" required>
+              </label>
+              <label class="field">
+                <span class="label">Nachname</span>
+                <input type="text" name="nachname">
+              </label>
+            </div>
+            <label class="field field-small">
+              <span class="label">Geburtstag <em>optional</em></span>
+              <input type="date" name="geburtstag">
+            </label>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend class="section-title"><span class="num">II</span>Schule</legend>
+            <div class="field">
+              <span class="label">Land</span>
+              <div class="choice">
+                <label><input type="radio" name="land" value="DE" checked><span>Deutschland</span></label>
+                <label><input type="radio" name="land" value="AT"><span>Österreich</span></label>
+                <label><input type="radio" name="land" value="CH"><span>Schweiz</span></label>
+              </div>
+            </div>
+            <div class="field-row">
+              <label class="field">
+                <span class="label"><span id="region-label">Bundesland</span> <em>optional</em></span>
+                <select name="region" id="region-select"></select>
+              </label>
+              <label class="field">
+                <span class="label">Schulform</span>
+                <select name="schulform" id="schulform-select"></select>
+              </label>
+              <label class="field field-small">
+                <span class="label">Klasse</span>
+                <input type="number" name="klasse" min="1" max="13">
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend class="section-title"><span class="num">III</span>Unterricht</legend>
+            <div class="field">
+              <span class="label">Art</span>
+              <div class="choice">
+                <label><input type="radio" name="art" value="privat" checked><span>Privat</span></label>
+                <label><input type="radio" name="art" value="plattform"><span>Plattform</span></label>
+              </div>
+            </div>
+
+            <div id="privat-fields">
+              <div class="field">
+                <span class="label">Standardlänge</span>
+                <div class="choice">
+                  <label><input type="radio" name="dauer" value="30"><span>30 Min</span></label>
+                  <label><input type="radio" name="dauer" value="45"><span>45 Min</span></label>
+                  <label><input type="radio" name="dauer" value="50" checked><span>50 Min</span></label>
+                  <label><input type="radio" name="dauer" value="60"><span>60 Min</span></label>
+                </div>
+                <div class="price-preview" id="price-preview"></div>
+              </div>
+              <label class="field">
+                <span class="label">Rechnung an</span>
+                <input type="text" name="rechnungAn" placeholder="z. B. Vorname der Mutter">
+              </label>
+            </div>
+
+            <div id="plattform-fields" hidden>
+              <p class="hint">Plattform-Stunden dauern immer 45 Minuten.</p>
+              <label class="field field-small">
+                <span class="label">Offene Nachholstunden</span>
+                <input type="number" name="nachholStart" min="0" value="0">
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend class="section-title"><span class="num">IV</span>Termine</legend>
+            <div id="termine"></div>
+            <button type="button" class="btn" id="add-termin">+ weiterer Termin</button>
+          </fieldset>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Speichern</button>
+            <button type="button" class="btn" id="cancel-form">Abbrechen</button>
+          </div>
+        </form>
+      </section>
     </main>
   </div>
-    <script src="renderer.js"></script>
+
+  <template id="termin-template">
+    <div class="termin-row">
+      <select name="tag">
+        <option value="1">Montag</option>
+        <option value="2">Dienstag</option>
+        <option value="3">Mittwoch</option>
+        <option value="4">Donnerstag</option>
+        <option value="5">Freitag</option>
+      </select>
+      <input type="time" name="zeit" step="900" value="16:00">
+      <button type="button" class="btn-icon remove-termin" aria-label="Termin entfernen">×</button>
+    </div>
+  </template>
+
+  <script src="laender.js"></script>
+  <script src="renderer.js"></script>
 </body>
 </html>

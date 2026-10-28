@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain } = require('electron');
 
 const POPOVER_WIDTH = 380;
@@ -7,6 +8,30 @@ const POPOVER_HEIGHT = 560;
 let mainWindow = null;
 let popover = null;
 let tray = null;
+
+const EMPTY_DATA = { students: [], settings: { hourlyRate: 24 } };
+
+function dataFile() {
+  return path.join(app.getPath('userData'), 'daten.json');
+}
+
+function loadData() {
+  try {
+    const text = fs.readFileSync(dataFile(), 'utf8');
+    return JSON.parse(text);
+  } catch (error) {
+    if (error.code === 'ENOENT') return structuredClone(EMPTY_DATA);
+    throw error;
+  }
+}
+
+function saveData(data) {
+  const file = dataFile();
+  const temp = file + '.tmp';
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(temp, JSON.stringify(data, null, 2));
+  fs.renameSync(temp, file);
+}
 
 function openMainWindow() {
   if (mainWindow) {
@@ -103,3 +128,5 @@ app.whenReady().then(() => {
 app.on('activate', openMainWindow);
 app.on('window-all-closed', () => {});
 ipcMain.on('open-main-window', openMainWindow);
+ipcMain.handle('load-data', () => loadData());
+ipcMain.handle('save-data', (event, data) => saveData(data));
