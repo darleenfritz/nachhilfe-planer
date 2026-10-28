@@ -3,18 +3,78 @@
 <head>
   <meta charset="UTF-8">
   <title>Nachhilfe</title>
+  <link rel="stylesheet" href="style.css">
   <style>
     body {
-      margin: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
       padding: 20px;
-      font-family: -apple-system, sans-serif;
-      background: transparent;
+      border: 1px solid var(--ink);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .pop-header {
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--ink);
+    }
+
+    .pop-date {
+      font-family: var(--serif);
+      font-size: 38px;
+      line-height: 0.95;
+      letter-spacing: -1px;
+    }
+
+    .pop-date em {
+      color: var(--pink);
+    }
+
+    .pop-section {
+      padding: 14px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .pop-empty {
+      margin-top: 6px;
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 20px;
+      color: var(--muted);
+    }
+
+    .pop-note {
+      margin-top: 12px;
+      font-size: 21px;
+      transform: rotate(-2deg);
+    }
+
+    .pop-open {
+      width: 100%;
+      margin-top: auto;
     }
   </style>
 </head>
 <body>
-  <h2>📚 Nachhilfe</h2>
-  <p>Hier entsteht das kleine Fenster.</p>
-  <button onclick="window.api.openMainWindow()">App öffnen</button>
+  <div class="pop-header">
+    <div class="eyebrow" id="weekday"></div>
+    <div class="pop-date" id="date"></div>
+  </div>
+
+  <div class="pop-section">
+    <div class="eyebrow">Heute</div>
+    <div class="pop-empty">Noch keine Stunden eingetragen.</div>
+  </div>
+
+  <div class="hand pop-note">Bald stehen hier deine Stunden!</div>
+
+  <button class="btn btn-primary pop-open" onclick="window.api.openMainWindow()">App öffnen →</button>
+
+  <script>
+    const now = new Date();
+    document.getElementById('weekday').textContent = now.toLocaleDateString('de-DE', { weekday: 'long' });
+    document.getElementById('date').innerHTML = `<em>${now.getDate()}.</em> ${now.toLocaleDateString('de-DE', { month: 'long' })}`;
+  </script>
 </body>
 </html>
