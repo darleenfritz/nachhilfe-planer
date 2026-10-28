@@ -22,7 +22,7 @@
 
       <div class="spacer"></div>
 
-      <button class="nav-item" data-page="placeholder"><span class="num">07</span>Archiv</button>
+      <button class="nav-item" data-page="archive"><span class="num">07</span>Archiv</button>
       <button class="nav-item" data-page="placeholder"><span class="num">08</span>Einstellungen</button>
     </nav>
 
@@ -49,6 +49,11 @@
           Noch keine Schüler angelegt.
           <span class="hand">Leg deinen ersten an!</span>
         </div>
+      </section>
+
+      <section class="page" id="page-archive" hidden>
+        <div class="student-list" id="archive-list"></div>
+        <div class="empty" id="archive-empty">Das Archiv ist leer.</div>
       </section>
 
       <section class="page" id="page-student-form" hidden>
@@ -143,6 +148,7 @@
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">Speichern</button>
             <button type="button" class="btn" id="cancel-form">Abbrechen</button>
+            <button type="button" class="btn btn-archive" id="archive-btn" hidden>Archivieren</button>
           </div>
         </form>
       </section>
