@@ -3,6 +3,7 @@ const COLORS = ['#FF2E88', '#C6F432', '#3D8BF2', '#F5A623', '#9B6BFF', '#22B573'
 
 let data = { students: [], settings: { hourlyRate: 24 } };
 let canSave = true;
+let editingId = null;
 
 const navItems = document.querySelectorAll('.nav-item');
 const studentsNav = document.querySelector('[data-page="students"]');
@@ -78,10 +79,17 @@ function openStudents() {
   showPage('students');
 }
 
-function openForm() {
+function openForm(student = null) {
   resetForm();
-  eyebrow.textContent = 'Schüler anlegen';
-  title.innerHTML = 'Neuer <em>Schüler.</em>';
+  editingId = student ? student.id : null;
+  if (student) {
+    fillForm(student);
+    eyebrow.textContent = 'Schüler bearbeiten';
+    title.textContent = `${student.vorname}.`;
+  } else {
+    eyebrow.textContent = 'Schüler anlegen';
+    title.innerHTML = 'Neuer <em>Schüler.</em>';
+  }
   setActiveNav(studentsNav);
   showPage('student-form');
 }
@@ -110,8 +118,12 @@ function updatePrice() {
   pricePreview.textContent = `${formatEuro(priceFor(minutes))} pro Stunde, bei ${formatEuro(data.settings.hourlyRate)} für 60 Minuten`;
 }
 
-function addTermin() {
+function addTermin(termin = null) {
   const row = terminTemplate.content.firstElementChild.cloneNode(true);
+  if (termin) {
+    row.querySelector('[name="tag"]').value = String(termin.tag);
+    row.querySelector('[name="zeit"]').value = termin.zeit;
+  }
   row.querySelector('.remove-termin').addEventListener('click', () => row.remove());
   termine.append(row);
 }
@@ -125,6 +137,30 @@ function resetForm() {
   updatePrice();
 }
 
+function fillForm(student) {
+  const f = form.elements;
+  f.vorname.value = student.vorname;
+  f.nachname.value = student.nachname;
+  f.geburtstag.value = student.geburtstag || '';
+  f.land.value = student.land;
+  updateLand();
+  f.region.value = student.region || '';
+  f.schulform.value = student.schulform;
+  f.klasse.value = student.klasse ?? '';
+  f.art.value = student.art;
+  updateArt();
+  if (student.art === 'privat') {
+    f.dauer.value = String(student.dauer);
+    f.rechnungAn.value = student.rechnungAn || '';
+  } else {
+    f.nachholStart.value = student.nachholStart;
+  }
+  updatePrice();
+  termine.replaceChildren();
+  student.termine.forEach((termin) => addTermin(termin));
+  if (student.termine.length === 0) addTermin();
+}
+
 function readTermine() {
   return [...termine.querySelectorAll('.termin-row')]
     .map((row) => ({
@@ -132,6 +168,25 @@ function readTermine() {
       zeit: row.querySelector('[name="zeit"]').value,
     }))
     .filter((termin) => termin.zeit);
+}
+
+function readForm() {
+  const f = form.elements;
+  const art = f.art.value;
+  return {
+    vorname: f.vorname.value.trim(),
+    nachname: f.nachname.value.trim(),
+    geburtstag: f.geburtstag.value || null,
+    land: f.land.value,
+    region: f.region.value || null,
+    schulform: f.schulform.value,
+    klasse: f.klasse.value ? Number(f.klasse.value) : null,
+    art,
+    dauer: art === 'privat' ? Number(f.dauer.value) : 45,
+    rechnungAn: art === 'privat' ? f.rechnungAn.value.trim() : null,
+    nachholStart: art === 'plattform' ? Number(f.nachholStart.value) : 0,
+    termine: readTermine(),
+  };
 }
 
 function regionName(student) {
@@ -142,6 +197,11 @@ function regionName(student) {
 
 function studentRow(student) {
   const row = el('div', 'student-row');
+  row.tabIndex = 0;
+  row.addEventListener('click', () => openForm(student));
+  row.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') openForm(student);
+  });
 
   const nameCell = el('div');
   const meta = [student.klasse ? `Klasse ${student.klasse}` : null, student.schulform, regionName(student)]
@@ -187,8 +247,8 @@ navItems.forEach((item) => {
   });
 });
 
-newStudentBtn.addEventListener('click', openForm);
-document.getElementById('add-termin').addEventListener('click', addTermin);
+newStudentBtn.addEventListener('click', () => openForm());
+document.getElementById('add-termin').addEventListener('click', () => addTermin());
 
 document.getElementById('cancel-form').addEventListener('click', () => {
   setActiveNav(studentsNav);
@@ -209,32 +269,26 @@ form.addEventListener('submit', async (event) => {
     return;
   }
 
-  const f = form.elements;
-  const art = f.art.value;
-  const student = {
-    id: crypto.randomUUID(),
-    vorname: f.vorname.value.trim(),
-    nachname: f.nachname.value.trim(),
-    geburtstag: f.geburtstag.value || null,
-    land: f.land.value,
-    region: f.region.value || null,
-    schulform: f.schulform.value,
-    klasse: f.klasse.value ? Number(f.klasse.value) : null,
-    art,
-    dauer: art === 'privat' ? Number(f.dauer.value) : 45,
-    rechnungAn: art === 'privat' ? f.rechnungAn.value.trim() : null,
-    nachholStart: art === 'plattform' ? Number(f.nachholStart.value) : 0,
-    termine: readTermine(),
-    farbe: COLORS[data.students.length % COLORS.length],
-    archiviert: false,
-    angelegt: new Date().toISOString(),
-  };
+  const before = structuredClone(data.students);
+  const values = readForm();
 
-  data.students.push(student);
+  if (editingId) {
+    const student = data.students.find((s) => s.id === editingId);
+    Object.assign(student, values);
+  } else {
+    data.students.push({
+      id: crypto.randomUUID(),
+      ...values,
+      farbe: COLORS[data.students.length % COLORS.length],
+      archiviert: false,
+      angelegt: new Date().toISOString(),
+    });
+  }
+
   try {
     await window.api.saveData(data);
   } catch (error) {
-    data.students.pop();
+    data.students = before;
     alert(`Speichern hat nicht geklappt: ${error.message}`);
     return;
   }
