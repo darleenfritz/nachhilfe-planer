@@ -1545,3 +1545,21 @@ h1 em {
 .nachhol-delta.plus {
   color: var(--pink);
 }
+
+.invoice-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:22px}
+.invoice-stat{border:1px solid var(--ink);background:var(--card);padding:14px 16px}
+.invoice-stat:first-child{box-shadow:3px 3px 0 var(--pink)}
+.invoice-stat-value{font-family:var(--serif);font-size:38px;line-height:1.05;margin-top:4px}
+.invoice-list{border-top:1px solid var(--ink);margin-top:14px}
+.invoice-row{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto;gap:16px;align-items:center;padding:12px 8px;border-bottom:1px solid var(--line);cursor:pointer}
+.invoice-row:hover,.invoice-row.selected{background:var(--card)}
+.invoice-row .student-name{display:flex;align-items:center;gap:8px}
+.inv-status{display:inline-block;padding:3px 10px;border-radius:999px;border:1.5px solid var(--ink);font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+.inv-status.offen{border-color:var(--pink);color:var(--pink)}
+.inv-status.verschickt{background:var(--lime)}
+.inv-status.bezahlt{background:var(--ink);color:var(--paper)}
+.invoice-open{padding:4px 8px 18px;border-bottom:1px solid var(--line);background:var(--card)}
+.invoice-editor{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.invoice-text{width:100%;box-sizing:border-box;font-family:var(--sans);font-size:14px;line-height:1.55;padding:12px 14px;border:1px solid var(--ink);border-radius:0;background:var(--paper);color:var(--ink);resize:vertical}
+.invoice-text:focus{outline:none;box-shadow:3px 3px 0 var(--lime)}
+.invoice-note{color:var(--pink);font-size:18px}
