@@ -267,7 +267,7 @@ function openMainWindow() {
 
 function updateSummary(summary) {
   lastSummary = summary;
-  if (tray) tray.setTitle(summary.count > 0 ? `📚 ${summary.count}` : '📚');
+  if (tray) tray.setTitle(summary.count > 0 ? ` ${summary.count}` : '');
   if (popover) popover.webContents.send('summary', summary);
 }
 
@@ -313,8 +313,9 @@ function togglePopover() {
 app.whenReady().then(() => {
   createPopover();
 
-  tray = new Tray(nativeImage.createEmpty());
-  tray.setTitle('📚');
+  const trayIcon = nativeImage.createFromPath(path.join(__dirname, 'trayTemplate.png'));
+  trayIcon.setTemplateImage(true);
+  tray = new Tray(trayIcon);
   tray.setToolTip('Nachhilfe');
   tray.on('click', togglePopover);
   tray.on('right-click', () => {
