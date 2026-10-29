@@ -1,19 +1,30 @@
 const DAYS = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr'];
+const WEEKDAYS_LONG = ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'];
 const COLORS = ['#FF2E88', '#C6F432', '#3D8BF2', '#F5A623', '#9B6BFF', '#22B573', '#00B8D9', '#F2668F'];
 const RANGE_MONTHS = 3;
 const RANGE_STEP = 1;
 const PAUSE_PREVIEW_DAYS = 14;
+const DAY_START = 13 * 60;
+const DAY_END = 20 * 60;
+const SLOT = 15;
+const SLOT_HEIGHT = 19;
+const MIN_FREE = 45;
 
 let data = { students: [], settings: { hourlyRate: 24 } };
 let canSave = true;
 let editingId = null;
 let savedTimer = null;
+let copyTimer = null;
 let currentPage = 'overview';
 let holidays = {};
 let holidayFailed = [];
 let holidayView = 'rows';
 let rangeStart = startOfMonth(new Date());
 let selected = null;
+let scheduleMode = 'normal';
+let weekStart = currentWeekStart();
+let editingBlocks = false;
+let drag = null;
 
 const navItems = document.querySelectorAll('.nav-item');
 const studentsNav = document.querySelector('[data-page="students"]');
@@ -43,7 +54,20 @@ const settingsForm = document.getElementById('settings-form');
 const ratePreview = document.getElementById('rate-preview');
 const settingsSaved = document.getElementById('settings-saved');
 const autostartToggle = document.getElementById('autostart-toggle');
-const viewButtons = document.querySelectorAll('.view-switch .btn');
+const modeButtons = document.querySelectorAll('[data-mode]');
+const blockToggle = document.getElementById('block-toggle');
+const blockHint = document.getElementById('block-hint');
+const weekPrev = document.getElementById('week-prev');
+const weekNext = document.getElementById('week-next');
+const weekToday = document.getElementById('week-today');
+const weekTitle = document.getElementById('week-title');
+const weekInfo = document.getElementById('week-info');
+const weekGrid = document.getElementById('week-grid');
+const scheduleLegend = document.getElementById('schedule-legend');
+const freeTitle = document.getElementById('free-title');
+const freeList = document.getElementById('free-list');
+const freeCopy = document.getElementById('free-copy');
+const viewButtons = document.querySelectorAll('[data-view]');
 const holidayNotice = document.getElementById('holiday-notice');
 const rowsView = document.getElementById('holiday-rows-view');
 const calendarView = document.getElementById('holiday-calendar-view');
@@ -76,6 +100,12 @@ function addMonths(date, months) {
   return new Date(date.getFullYear(), date.getMonth() + months, 1);
 }
 
+function currentWeekStart() {
+  const today = startOfDay(new Date());
+  const monday = addDays(today, -((today.getDay() + 6) % 7));
+  return today.getDay() === 0 || today.getDay() === 6 ? addDays(monday, 7) : monday;
+}
+
 function dayDiff(from, to) {
   return Math.round((to - from) / 86400000);
 }
@@ -89,6 +119,19 @@ function dayKey(date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function toMinutes(time) {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function formatTime(minutes) {
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+function toTimeString(minutes) {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 }
 
 function isoWeek(date) {
@@ -200,6 +243,11 @@ function holidayStatus(student, holiday) {
   return (student.ferien && student.ferien[holidayKey(holiday)]) || 'offen';
 }
 
+function holidayOn(student, date) {
+  const key = dayKey(date);
+  return (studentHolidays(student) || []).find((h) => h.start <= key && key <= h.end) || null;
+}
+
 function sameRegion(student) {
   const code = studentCode(student);
   return activeStudents().filter((s) => s.id !== student.id && studentCode(s) === code);
@@ -267,6 +315,7 @@ async function refreshHolidays() {
   if (currentPage === 'holidays') renderHolidays();
   if (currentPage === 'overview') renderOverview();
   if (currentPage === 'students') renderStudents();
+  if (currentPage === 'schedule') renderSchedule();
 }
 
 function setActiveNav(activeItem) {
@@ -278,7 +327,7 @@ function showPage(id) {
   pages.forEach((page) => {
     page.hidden = page.id !== `page-${id}`;
   });
-  newStudentBtn.hidden = ['student-form', 'settings', 'holidays'].includes(id);
+  newStudentBtn.hidden = ['student-form', 'settings', 'holidays', 'schedule'].includes(id);
 }
 
 function openOverview() {
@@ -301,6 +350,14 @@ function openStudents() {
   title.innerHTML = 'Schüler<em>.</em>';
   renderStudents();
   showPage('students');
+}
+
+function openSchedule() {
+  eyebrow.textContent = `${formatTime(DAY_START)} bis ${formatTime(DAY_END)} Uhr`;
+  title.innerHTML = 'Stundenplan<em>.</em>';
+  editingBlocks = false;
+  showPage('schedule');
+  renderSchedule();
 }
 
 function openArchive() {
@@ -505,6 +562,302 @@ function renderOverview() {
   todoList.replaceChildren(...cards);
   todoBlock.hidden = cards.length === 0;
   overviewEmpty.hidden = cards.length > 0;
+}
+
+function gridY(minutes) {
+  return ((minutes - DAY_START) / SLOT) * SLOT_HEIGHT;
+}
+
+function snapMinutes(pixels) {
+  const slot = Math.floor(pixels / SLOT_HEIGHT);
+  const minutes = DAY_START + slot * SLOT;
+  return Math.min(Math.max(minutes, DAY_START), DAY_END - SLOT);
+}
+
+function blockedTimes() {
+  return data.blockiert || [];
+}
+
+function mergeBlocks(blocks) {
+  const merged = [];
+  [...blocks]
+    .sort((a, b) => a.tag - b.tag || toMinutes(a.von) - toMinutes(b.von))
+    .forEach((block) => {
+      const last = merged[merged.length - 1];
+      if (last && last.tag === block.tag && toMinutes(block.von) <= toMinutes(last.bis)) {
+        if (toMinutes(block.bis) > toMinutes(last.bis)) last.bis = block.bis;
+      } else {
+        merged.push({ ...block });
+      }
+    });
+  return merged;
+}
+
+function weekLessons() {
+  const lessons = [];
+  activeStudents().forEach((student) => {
+    student.termine.forEach((termin) => {
+      const lesson = {
+        student,
+        tag: termin.tag,
+        start: toMinutes(termin.zeit),
+        dauer: student.dauer,
+        kind: 'normal',
+        note: '',
+      };
+      if (scheduleMode === 'real') {
+        const date = addDays(weekStart, termin.tag - 1);
+        const holiday = holidayOn(student, date);
+        if (holiday && holidayStatus(student, holiday) === 'pausiert') {
+          lesson.kind = 'paused';
+          lesson.note = 'pausiert';
+        }
+      }
+      lessons.push(lesson);
+    });
+  });
+  return lessons;
+}
+
+function weekHolidayInfo() {
+  const friday = addDays(weekStart, 4);
+  const names = new Set();
+  activeStudents().forEach((student) => {
+    (studentHolidays(student) || []).forEach((h) => {
+      if (h.start <= dayKey(friday) && h.end >= dayKey(weekStart)) {
+        names.add(`${h.name} in ${regionName(student)}`);
+      }
+    });
+  });
+  return [...names].join(', ');
+}
+
+function renderWeekNav() {
+  const isReal = scheduleMode === 'real';
+  [weekPrev, weekNext, weekToday, weekInfo].forEach((node) => {
+    node.hidden = !isReal;
+  });
+
+  if (!isReal) {
+    weekTitle.replaceChildren('Deine ', el('em', null, 'normale'), ' Woche');
+    return;
+  }
+
+  const friday = addDays(weekStart, 4);
+  const fromText = weekStart.getMonth() === friday.getMonth() ? `${weekStart.getDate()}.` : `${weekStart.getDate()}. ${monthName(weekStart)}`;
+  weekTitle.replaceChildren(`${fromText} `, el('em', null, 'bis'), ` ${friday.getDate()}. ${monthName(friday)}`);
+  const holidayText = weekHolidayInfo();
+  weekInfo.textContent = `KW ${isoWeek(weekStart)}${holidayText ? ` · ${holidayText}` : ''}`;
+}
+
+function startDrag(event, body, tag) {
+  if (!editingBlocks || event.target.closest('.wg-blocked')) return;
+  const rect = body.getBoundingClientRect();
+  const anchor = snapMinutes(event.clientY - rect.top);
+  const draft = el('div', 'wg-draft');
+  body.append(draft);
+  drag = { body, tag, anchor, from: anchor, to: anchor + SLOT, draft };
+  body.setPointerCapture(event.pointerId);
+  drawDraft();
+}
+
+function moveDrag(event) {
+  if (!drag) return;
+  const rect = drag.body.getBoundingClientRect();
+  const current = snapMinutes(event.clientY - rect.top);
+  drag.from = Math.min(drag.anchor, current);
+  drag.to = Math.max(drag.anchor, current) + SLOT;
+  drawDraft();
+}
+
+function drawDraft() {
+  drag.draft.style.top = `${gridY(drag.from)}px`;
+  drag.draft.style.height = `${gridY(drag.to) - gridY(drag.from)}px`;
+}
+
+async function endDrag() {
+  if (!drag) return;
+  const { tag, from, to } = drag;
+  drag = null;
+  const saved = await persist(() => {
+    data.blockiert = mergeBlocks([...blockedTimes(), { tag, von: toTimeString(from), bis: toTimeString(to) }]);
+  });
+  if (saved || !saved) renderSchedule();
+}
+
+async function removeBlock(block) {
+  const saved = await persist(() => {
+    data.blockiert = blockedTimes().filter((b) => !(b.tag === block.tag && b.von === block.von && b.bis === block.bis));
+  });
+  if (saved) renderSchedule();
+}
+
+function lessonBlock(lesson) {
+  const top = Math.max(lesson.start, DAY_START);
+  const bottom = Math.min(lesson.start + lesson.dauer, DAY_END);
+  const box = el('div', `wg-lesson ${lesson.kind}`);
+  box.style.setProperty('--c', lesson.student.farbe);
+  box.style.top = `${gridY(top)}px`;
+  box.style.height = `${gridY(bottom) - gridY(top)}px`;
+  box.title = `${fullName(lesson.student)}, ${formatTime(lesson.start)} Uhr, ${lesson.dauer} Minuten`;
+  box.append(
+    el('div', 'wg-lesson-name', lesson.student.vorname),
+    el('div', 'wg-lesson-time', `${formatTime(lesson.start)} · ${lesson.dauer} Min`),
+  );
+  if (lesson.note) box.append(el('div', 'hand wg-lesson-note', lesson.note));
+  return box;
+}
+
+function renderWeekGrid(lessons) {
+  const height = `${gridY(DAY_END)}px`;
+  const todayKey = dayKey(new Date());
+
+  const times = el('div', 'wg-times');
+  const timesBody = el('div', 'wg-body');
+  timesBody.style.height = height;
+  for (let m = DAY_START; m <= DAY_END; m += 60) {
+    const label = el('div', 'wg-time-label', formatTime(m));
+    label.style.top = `${gridY(m)}px`;
+    timesBody.append(label);
+  }
+  times.append(el('div', 'wg-head'), timesBody);
+
+  const columns = [1, 2, 3, 4, 5].map((tag) => {
+    const date = addDays(weekStart, tag - 1);
+    const column = el('div', 'wg-day');
+
+    const head = el('div', 'wg-head');
+    head.append(el('div', 'wg-day-name', DAYS[tag]));
+    if (scheduleMode === 'real') {
+      head.append(el('div', 'wg-day-date', `${date.getDate()}. ${shortMonth(date)}`));
+      if (dayKey(date) === todayKey) head.classList.add('today');
+    }
+
+    const body = el('div', 'wg-body');
+    body.style.height = height;
+    for (let m = DAY_START; m <= DAY_END; m += 60) {
+      const line = el('div', 'wg-hour');
+      line.style.top = `${gridY(m)}px`;
+      body.append(line);
+    }
+
+    blockedTimes()
+      .filter((b) => b.tag === tag)
+      .forEach((block) => {
+        const from = Math.max(toMinutes(block.von), DAY_START);
+        const to = Math.min(toMinutes(block.bis), DAY_END);
+        if (to <= from) return;
+        const box = el('div', 'wg-blocked', 'blockiert');
+        box.style.top = `${gridY(from)}px`;
+        box.style.height = `${gridY(to) - gridY(from)}px`;
+        box.title = `blockiert ${formatTime(from)} bis ${formatTime(to)}`;
+        box.addEventListener('click', () => {
+          if (editingBlocks) removeBlock(block);
+        });
+        body.append(box);
+      });
+
+    lessons
+      .filter((l) => l.tag === tag && l.start < DAY_END && l.start + l.dauer > DAY_START)
+      .forEach((lesson) => body.append(lessonBlock(lesson)));
+
+    body.addEventListener('pointerdown', (event) => startDrag(event, body, tag));
+    body.addEventListener('pointermove', moveDrag);
+    body.addEventListener('pointerup', endDrag);
+
+    column.append(head, body);
+    return column;
+  });
+
+  weekGrid.classList.toggle('editing', editingBlocks);
+  weekGrid.replaceChildren(times, ...columns);
+}
+
+function renderScheduleLegend() {
+  const items = scheduleMode === 'real'
+    ? [['sw-normal', 'findet statt'], ['sw-dashed', 'pausiert oder verschoben'], ['sw-extra', 'Ersatz- oder Zusatzstunde'], ['sw-blocked', 'blockiert']]
+    : [['sw-normal', 'feste Termine'], ['sw-blocked', 'blockiert']];
+  scheduleLegend.replaceChildren(...items.map(([cls, text]) => {
+    const item = el('span');
+    item.append(el('span', `legend-swatch ${cls}`), text);
+    return item;
+  }));
+}
+
+function freeTimes(lessons) {
+  const result = [];
+  [1, 2, 3, 4, 5].forEach((tag) => {
+    const busy = [
+      ...blockedTimes().filter((b) => b.tag === tag).map((b) => [toMinutes(b.von), toMinutes(b.bis)]),
+      ...lessons.filter((l) => l.tag === tag && (l.kind === 'normal' || l.kind === 'extra')).map((l) => [l.start, l.start + l.dauer]),
+    ].sort((a, b) => a[0] - b[0]);
+
+    let cursor = DAY_START;
+    const gaps = [];
+    busy.forEach(([from, to]) => {
+      if (from > cursor) gaps.push([cursor, Math.min(from, DAY_END)]);
+      cursor = Math.max(cursor, to);
+    });
+    if (cursor < DAY_END) gaps.push([cursor, DAY_END]);
+
+    gaps
+      .filter(([from, to]) => to - from >= MIN_FREE)
+      .forEach(([from, to]) => {
+        const reasons = lessons
+          .filter((l) => l.tag === tag && (l.kind === 'paused' || l.kind === 'moved') && l.start < to && l.start + l.dauer > from)
+          .map((l) => `${l.student.vorname} ${l.note}`);
+        result.push({ tag, from, to, reasons });
+      });
+  });
+  return result;
+}
+
+function renderFreeTimes(lessons) {
+  const list = freeTimes(lessons);
+  freeTitle.textContent = scheduleMode === 'real' ? 'Diese Woche' : 'Jede Woche';
+
+  if (list.length === 0) {
+    freeList.replaceChildren(el('div', 'free-empty', 'Keine freien Zeiten.'));
+  } else {
+    freeList.replaceChildren(...list.map((slot) => {
+      const row = el('div', 'free-row');
+      const time = el('span', 'free-time', `${formatTime(slot.from)} bis ${formatTime(slot.to)}`);
+      slot.reasons.forEach((reason) => time.append(el('span', 'hand free-reason', reason)));
+      row.append(el('span', 'free-day', DAYS[slot.tag]), time);
+      return row;
+    }));
+  }
+
+  freeCopy.disabled = list.length === 0;
+  freeCopy.onclick = async () => {
+    const heading = scheduleMode === 'real'
+      ? `Freie Zeiten vom ${weekStart.getDate()}. ${monthName(weekStart)} bis ${addDays(weekStart, 4).getDate()}. ${monthName(addDays(weekStart, 4))}:`
+      : 'Meine freien Zeiten:';
+    const lines = list.map((slot) => `${WEEKDAYS_LONG[slot.tag]} ${formatTime(slot.from)} bis ${formatTime(slot.to)} Uhr`);
+    try {
+      await navigator.clipboard.writeText([heading, ...lines].join('\n'));
+      freeCopy.textContent = 'Kopiert!';
+    } catch (error) {
+      freeCopy.textContent = 'Hat nicht geklappt';
+    }
+    clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => {
+      freeCopy.textContent = 'Kopieren';
+    }, 2000);
+  };
+}
+
+function renderSchedule() {
+  modeButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.mode === scheduleMode));
+  blockToggle.classList.toggle('active', editingBlocks);
+  blockToggle.textContent = editingBlocks ? 'Fertig' : 'Zeiten blockieren';
+  blockHint.hidden = !editingBlocks;
+
+  const lessons = weekLessons();
+  renderWeekNav();
+  renderWeekGrid(lessons);
+  renderScheduleLegend();
+  renderFreeTimes(lessons);
 }
 
 function fillSelect(select, options, withEmpty) {
@@ -917,6 +1270,7 @@ navItems.forEach((item) => {
     const page = item.dataset.page;
     if (page === 'overview') openOverview();
     else if (page === 'students') openStudents();
+    else if (page === 'schedule') openSchedule();
     else if (page === 'holidays') openHolidays();
     else if (page === 'archive') openArchive();
     else if (page === 'settings') openSettings();
@@ -1011,6 +1365,33 @@ autostartToggle.addEventListener('change', async () => {
     autostartToggle.checked = !autostartToggle.checked;
     alert(`Der Autostart konnte nicht geändert werden: ${error.message}`);
   }
+});
+
+modeButtons.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    scheduleMode = btn.dataset.mode;
+    renderSchedule();
+  });
+});
+
+blockToggle.addEventListener('click', () => {
+  editingBlocks = !editingBlocks;
+  renderSchedule();
+});
+
+weekPrev.addEventListener('click', () => {
+  weekStart = addDays(weekStart, -7);
+  renderSchedule();
+});
+
+weekNext.addEventListener('click', () => {
+  weekStart = addDays(weekStart, 7);
+  renderSchedule();
+});
+
+weekToday.addEventListener('click', () => {
+  weekStart = currentWeekStart();
+  renderSchedule();
 });
 
 viewButtons.forEach((btn) => {

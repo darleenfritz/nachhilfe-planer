@@ -15,7 +15,7 @@
 
       <button class="nav-item active" data-page="overview"><span class="num">01</span>Übersicht</button>
       <button class="nav-item" data-page="students"><span class="num">02</span>Schüler</button>
-      <button class="nav-item" data-page="placeholder"><span class="num">03</span>Stundenplan</button>
+      <button class="nav-item" data-page="schedule"><span class="num">03</span>Stundenplan</button>
       <button class="nav-item" data-page="holidays"><span class="num">04</span>Ferien</button>
       <button class="nav-item" data-page="placeholder"><span class="num">05</span>Rechnungen</button>
       <button class="nav-item" data-page="placeholder"><span class="num">06</span>Schulaufgaben</button>
@@ -57,6 +57,43 @@
         <div class="empty" id="students-empty">
           Noch keine Schüler angelegt.
           <span class="hand">Leg deinen ersten an!</span>
+        </div>
+      </section>
+
+      <section class="page" id="page-schedule" hidden>
+        <div class="schedule-toolbar">
+          <div class="view-switch">
+            <button class="btn btn-small active" data-mode="normal">Normale Woche</button>
+            <button class="btn btn-small" data-mode="real">Echte Woche</button>
+          </div>
+          <button class="btn btn-small" id="block-toggle">Zeiten blockieren</button>
+        </div>
+
+        <div class="range-nav">
+          <button class="btn btn-round" id="week-prev" aria-label="Vorherige Woche">←</button>
+          <span class="range-title" id="week-title"></span>
+          <span class="student-meta" id="week-info"></span>
+          <button class="btn btn-round" id="week-next" aria-label="Nächste Woche">→</button>
+          <button class="btn btn-small" id="week-today">Heute</button>
+        </div>
+
+        <div class="block-hint" id="block-hint" hidden>
+          Zieh mit der Maus über eine freie Zeit, um sie zu blockieren. Ein Klick auf eine blockierte Zeit gibt sie wieder frei.
+        </div>
+
+        <div class="schedule-layout">
+          <div class="schedule-main">
+            <div class="week-grid" id="week-grid"></div>
+            <div class="legend schedule-legend" id="schedule-legend"></div>
+          </div>
+
+          <aside class="free-box">
+            <div class="eyebrow free-kicker">Freie Zeiten</div>
+            <div class="free-title" id="free-title"></div>
+            <div class="free-list" id="free-list"></div>
+            <button class="btn btn-primary free-copy" id="free-copy">Kopieren</button>
+            <div class="student-meta" id="free-note">nur Zeiten ab 45 Minuten</div>
+          </aside>
         </div>
       </section>
 
