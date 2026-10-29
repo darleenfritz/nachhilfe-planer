@@ -19,7 +19,7 @@
       <button class="nav-item" data-page="holidays"><span class="num">04</span>Ferien</button>
       <button class="nav-item" data-page="invoices"><span class="num">05</span>Rechnungen</button>
       <button class="nav-item" data-page="exams"><span class="num">06</span>Schulaufgaben</button>
-      <button class="nav-item" data-page="placeholder"><span class="num">07</span>Aufgaben</button>
+      <button class="nav-item" data-page="tasks"><span class="num">07</span>Aufgaben</button>
 
       <div class="spacer"></div>
 
@@ -281,6 +281,65 @@
           <h2 class="block-title"><span class="num">II</span>Vergangene</h2>
           <div class="exam-list" id="exam-past"></div>
         </div>
+      </section>
+
+      <section class="page" id="page-tasks" hidden>
+        <div class="task-search-row">
+          <input type="search" class="task-search" id="task-search" placeholder="Suchen nach Titel oder Thema, z. B. Brüche">
+          <button class="btn btn-small" id="task-new">+ Aufgabe</button>
+        </div>
+
+        <form class="holiday-detail task-form" id="task-form" hidden>
+          <div class="eyebrow detail-student" id="task-form-title"></div>
+          <label class="field">
+            <span class="label">Titel</span>
+            <input type="text" name="titel" required placeholder="z. B. Übungsblatt Dreisatz">
+          </label>
+          <label class="field">
+            <span class="label">Link <em>oder unten eine Datei</em></span>
+            <input type="text" name="url" placeholder="z. B. serlo.org/mathe">
+          </label>
+          <div class="field">
+            <span class="label">Datei</span>
+            <div class="exam-files" id="task-file"></div>
+            <button type="button" class="btn btn-small" id="task-attach">+ Datei anhängen</button>
+          </div>
+          <div class="field">
+            <span class="label">Themen</span>
+            <div class="tag-input" id="tag-input">
+              <div class="tag-chips" id="tag-chips"></div>
+              <input type="text" id="tag-entry" list="tag-suggestions" placeholder="Thema tippen, Enter drücken">
+            </div>
+            <datalist id="tag-suggestions"></datalist>
+          </div>
+          <div class="field">
+            <span class="label">Klassenstufen <em>optional</em></span>
+            <div class="class-pills" id="task-classes"></div>
+          </div>
+          <label class="field">
+            <span class="label">Notiz <em>optional</em></span>
+            <textarea name="notiz" rows="2"></textarea>
+          </label>
+          <div class="todo-actions">
+            <button type="submit" class="btn btn-small btn-primary">Speichern</button>
+            <button type="button" class="btn btn-small" id="task-cancel">Abbrechen</button>
+            <button type="button" class="btn btn-small btn-archive" id="task-delete" hidden>Löschen</button>
+          </div>
+        </form>
+
+        <div class="task-filters">
+          <div class="task-filter-row">
+            <span class="label">Klasse</span>
+            <div class="class-pills" id="class-filter"></div>
+          </div>
+          <div class="task-filter-row">
+            <span class="label">Themen</span>
+            <div class="tag-cloud" id="tag-filter"></div>
+          </div>
+        </div>
+
+        <div class="student-meta task-count" id="task-count"></div>
+        <div class="task-list" id="task-list"></div>
       </section>
 
       <section class="page" id="page-holidays" hidden>

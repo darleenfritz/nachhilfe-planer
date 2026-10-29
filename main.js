@@ -130,6 +130,12 @@ function deleteFile(file) {
   }
 }
 
+function openLink(url) {
+  const parsed = new URL(url);
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Nur Internetadressen können geöffnet werden.');
+  return shell.openExternal(parsed.href);
+}
+
 function getAutostart() {
   return app.getLoginItemSettings().openAtLogin;
 }
@@ -264,3 +270,4 @@ ipcMain.handle('get-summary', () => lastSummary);
 ipcMain.handle('pick-files', () => pickFiles());
 ipcMain.handle('open-file', (event, file) => shell.openPath(attachPath(file)));
 ipcMain.handle('delete-file', (event, file) => deleteFile(file));
+ipcMain.handle('open-link', (event, url) => openLink(url));

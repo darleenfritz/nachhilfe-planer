@@ -40,6 +40,15 @@ let editingExamId = null;
 let examFiles = [];
 let examAdded = [];
 let examRemoved = [];
+let taskFormOpen = false;
+let editingTaskId = null;
+let taskTags = [];
+let taskClasses = [];
+let taskFile = null;
+let taskFileAdded = null;
+let taskFileRemoved = null;
+let taskClassFilter = null;
+let taskTagFilter = [];
 
 const navItems = document.querySelectorAll('.nav-item');
 const studentsNav = document.querySelector('[data-page="students"]');
@@ -75,6 +84,21 @@ const examDelete = document.getElementById('exam-delete');
 const examNext = document.getElementById('exam-next');
 const examUpcoming = document.getElementById('exam-upcoming');
 const examPast = document.getElementById('exam-past');
+const taskSearch = document.getElementById('task-search');
+const taskNew = document.getElementById('task-new');
+const taskForm = document.getElementById('task-form');
+const taskFormTitle = document.getElementById('task-form-title');
+const taskFileBox = document.getElementById('task-file');
+const taskAttach = document.getElementById('task-attach');
+const tagChips = document.getElementById('tag-chips');
+const tagEntry = document.getElementById('tag-entry');
+const tagSuggestions = document.getElementById('tag-suggestions');
+const taskClassesBox = document.getElementById('task-classes');
+const taskDelete = document.getElementById('task-delete');
+const classFilter = document.getElementById('class-filter');
+const tagFilter = document.getElementById('tag-filter');
+const taskCount = document.getElementById('task-count');
+const taskList = document.getElementById('task-list');
 const examSection = document.getElementById('exam-section');
 const studentExams = document.getElementById('student-exams');
 const tileBirthdayList = document.getElementById('tile-birthday-list');
@@ -905,7 +929,7 @@ function showPage(id) {
   pages.forEach((page) => {
     page.hidden = page.id !== `page-${id}`;
   });
-  newStudentBtn.hidden = ['student-form', 'settings', 'holidays', 'schedule', 'invoices', 'exams'].includes(id);
+  newStudentBtn.hidden = ['student-form', 'settings', 'holidays', 'schedule', 'invoices', 'exams', 'tasks'].includes(id);
 }
 
 function openOverview() {
@@ -938,6 +962,13 @@ function openSchedule() {
   moving = false;
   showPage('schedule');
   renderSchedule();
+}
+
+function openTasks() {
+  eyebrow.textContent = 'Material';
+  title.innerHTML = 'Aufgaben<em>.</em>';
+  showPage('tasks');
+  renderTasks();
 }
 
 function openExams() {
@@ -2196,6 +2227,277 @@ function renderStudentExams(student) {
     : list.map((e) => examRow(e, false))));
 }
 
+const CLASS_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+
+function aufgaben() {
+  return data.aufgaben || [];
+}
+
+function normalize(text) {
+  return text.toLocaleLowerCase('de-DE').trim();
+}
+
+function allTags() {
+  const tags = new Map();
+  aufgaben().forEach((a) => a.tags.forEach((t) => {
+    const key = normalize(t);
+    if (!tags.has(key)) tags.set(key, { name: t, count: 0 });
+    tags.get(key).count += 1;
+  }));
+  return [...tags.values()].sort((a, b) => a.name.localeCompare(b.name, 'de'));
+}
+
+function classText(klassen) {
+  if (klassen.length === 0) return '';
+  const sorted = [...klassen].sort((a, b) => a - b);
+  const isRange = sorted.length > 2 && sorted.every((k, i) => i === 0 || k === sorted[i - 1] + 1);
+  if (isRange) return `Klasse ${sorted[0]} bis ${sorted[sorted.length - 1]}`;
+  return `Klasse ${sorted.join(', ')}`;
+}
+
+function filteredTasks() {
+  const words = normalize(taskSearch.value).split(/\s+/).filter(Boolean);
+  return aufgaben()
+    .filter((a) => taskClassFilter === null || a.klassen.length === 0 || a.klassen.includes(taskClassFilter))
+    .filter((a) => taskTagFilter.every((tag) => a.tags.some((t) => normalize(t) === tag)))
+    .filter((a) => {
+      const haystack = normalize([a.titel, ...a.tags, a.notiz || '', a.url || '', a.datei ? a.datei.name : ''].join(' '));
+      return words.every((w) => haystack.includes(w));
+    })
+    .sort((a, b) => a.titel.localeCompare(b.titel, 'de'));
+}
+
+function pill(text, active, onClick) {
+  const btn = el('button', 'class-pill', text);
+  btn.type = 'button';
+  if (active) btn.classList.add('active');
+  btn.addEventListener('click', onClick);
+  return btn;
+}
+
+function renderTaskFilters() {
+  const used = [...new Set(aufgaben().flatMap((a) => a.klassen))].sort((a, b) => a - b);
+  classFilter.replaceChildren(
+    pill('Alle', taskClassFilter === null, () => {
+      taskClassFilter = null;
+      renderTasks();
+    }),
+    ...used.map((k) => pill(String(k), taskClassFilter === k, () => {
+      taskClassFilter = taskClassFilter === k ? null : k;
+      renderTasks();
+    })),
+  );
+
+  const tags = allTags();
+  tagFilter.replaceChildren(...(tags.length === 0
+    ? [el('span', 'student-meta', 'Noch keine Themen.')]
+    : tags.map((tag) => {
+      const key = normalize(tag.name);
+      const btn = pill(`${tag.name} ${tag.count}`, taskTagFilter.includes(key), () => {
+        taskTagFilter = taskTagFilter.includes(key) ? taskTagFilter.filter((t) => t !== key) : [...taskTagFilter, key];
+        renderTasks();
+      });
+      btn.classList.add('tag-pill');
+      return btn;
+    })));
+}
+
+function hostName(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch (error) {
+    return url;
+  }
+}
+
+function cleanUrl(text) {
+  if (!text) return null;
+  const withProtocol = /^https?:\/\//i.test(text) ? text : `https://${text}`;
+  try {
+    return new URL(withProtocol).href;
+  } catch (error) {
+    return undefined;
+  }
+}
+
+function taskRow(task) {
+  const row = el('div', 'task-row');
+
+  const info = el('div', 'task-info');
+  info.append(el('div', 'student-name', task.titel));
+  const meta = [classText(task.klassen), task.url ? hostName(task.url) : '', task.datei ? `📎 ${task.datei.name}` : '']
+    .filter(Boolean)
+    .join(' · ');
+  if (meta) info.append(el('div', 'student-meta', meta));
+  if (task.tags.length > 0) {
+    const tags = el('div', 'task-tags');
+    task.tags.forEach((t) => {
+      const chip = el('button', 'task-tag', t);
+      chip.type = 'button';
+      chip.addEventListener('click', () => {
+        const key = normalize(t);
+        if (!taskTagFilter.includes(key)) taskTagFilter = [...taskTagFilter, key];
+        renderTasks();
+      });
+      tags.append(chip);
+    });
+    info.append(tags);
+  }
+  if (task.notiz) info.append(el('div', 'hand task-note', task.notiz));
+
+  const actions = el('div', 'todo-actions task-actions');
+  const open = el('button', 'btn btn-small btn-primary', 'Öffnen');
+  open.addEventListener('click', async () => {
+    try {
+      if (task.url) await window.api.openLink(task.url);
+      else if (task.datei) {
+        const error = await window.api.openFile(task.datei.file);
+        if (error) alert(`Die Datei konnte nicht geöffnet werden: ${error}`);
+      }
+    } catch (error) {
+      alert(`Konnte nicht geöffnet werden: ${error.message}`);
+    }
+  });
+  actions.append(open);
+
+  if (task.url) {
+    const copy = el('button', 'btn btn-small', 'Link kopieren');
+    copy.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(task.url);
+        copy.textContent = 'Kopiert!';
+      } catch (error) {
+        copy.textContent = 'Hat nicht geklappt';
+      }
+      setTimeout(() => {
+        copy.textContent = 'Link kopieren';
+      }, 2000);
+    });
+    actions.append(copy);
+  }
+
+  const edit = el('button', 'btn btn-small', 'Bearbeiten');
+  edit.addEventListener('click', () => openTaskForm(task));
+  actions.append(edit);
+
+  row.append(info, actions);
+  return row;
+}
+
+function renderTasks() {
+  taskForm.hidden = !taskFormOpen;
+  taskNew.classList.toggle('active', taskFormOpen && !editingTaskId);
+  renderTaskFilters();
+
+  const list = filteredTasks();
+  const total = aufgaben().length;
+  if (total === 0) taskCount.textContent = 'Noch keine Aufgaben gespeichert.';
+  else if (list.length === total) taskCount.textContent = `${total} ${total === 1 ? 'Aufgabe' : 'Aufgaben'}`;
+  else taskCount.textContent = `${list.length} von ${total} Aufgaben`;
+
+  taskList.replaceChildren(...(list.length === 0 && total > 0
+    ? [el('div', 'history-empty', 'Nichts gefunden. Probier ein anderes Wort oder nimm einen Filter weg.')]
+    : list.map(taskRow)));
+}
+
+function renderTagChips() {
+  tagChips.replaceChildren(...taskTags.map((t) => {
+    const chip = el('span', 'task-tag');
+    const remove = el('button', 'tag-remove', '×');
+    remove.type = 'button';
+    remove.setAttribute('aria-label', `${t} entfernen`);
+    remove.addEventListener('click', () => {
+      taskTags = taskTags.filter((x) => x !== t);
+      renderTagChips();
+    });
+    chip.append(t, remove);
+    return chip;
+  }));
+  tagSuggestions.replaceChildren(...allTags()
+    .filter((t) => !taskTags.some((x) => normalize(x) === normalize(t.name)))
+    .map((t) => new Option(t.name)));
+}
+
+function addTagFromEntry() {
+  const parts = tagEntry.value.split(',').map((p) => p.trim()).filter(Boolean);
+  parts.forEach((part) => {
+    const existing = allTags().find((t) => normalize(t.name) === normalize(part));
+    const name = existing ? existing.name : part;
+    if (!taskTags.some((x) => normalize(x) === normalize(name))) taskTags.push(name);
+  });
+  tagEntry.value = '';
+  renderTagChips();
+}
+
+function renderTaskClasses() {
+  taskClassesBox.replaceChildren(...CLASS_LEVELS.map((k) => pill(String(k), taskClasses.includes(k), () => {
+    taskClasses = taskClasses.includes(k) ? taskClasses.filter((x) => x !== k) : [...taskClasses, k];
+    renderTaskClasses();
+  })));
+}
+
+function renderTaskFile() {
+  taskAttach.hidden = Boolean(taskFile);
+  if (!taskFile) {
+    taskFileBox.replaceChildren();
+    return;
+  }
+  const row = el('div', 'exam-file');
+  const name = el('button', 'exam-file-name', `📎 ${taskFile.name}`);
+  name.type = 'button';
+  name.addEventListener('click', async () => {
+    const error = await window.api.openFile(taskFile.file);
+    if (error) alert(`Die Datei konnte nicht geöffnet werden: ${error}`);
+  });
+  const remove = el('button', 'btn-icon', '×');
+  remove.type = 'button';
+  remove.setAttribute('aria-label', 'Datei entfernen');
+  remove.addEventListener('click', () => {
+    if (taskFileAdded === taskFile.file) {
+      window.api.deleteFile(taskFile.file);
+      taskFileAdded = null;
+    } else {
+      taskFileRemoved = taskFile.file;
+    }
+    taskFile = null;
+    renderTaskFile();
+  });
+  row.append(name, remove);
+  taskFileBox.replaceChildren(row);
+}
+
+function openTaskForm(task = null) {
+  taskFormOpen = true;
+  editingTaskId = task ? task.id : null;
+  taskTags = task ? [...task.tags] : [];
+  taskClasses = task ? [...task.klassen] : [];
+  taskFile = task && task.datei ? { ...task.datei } : null;
+  taskFileAdded = null;
+  taskFileRemoved = null;
+
+  taskForm.reset();
+  const f = taskForm.elements;
+  f.titel.value = task ? task.titel : '';
+  f.url.value = task ? task.url || '' : '';
+  f.notiz.value = task ? task.notiz || '' : '';
+  tagEntry.value = '';
+
+  taskFormTitle.textContent = task ? 'Aufgabe bearbeiten' : 'Aufgabe hinzufügen';
+  taskDelete.hidden = !task;
+  renderTagChips();
+  renderTaskClasses();
+  renderTaskFile();
+  renderTasks();
+  taskForm.scrollIntoView({ block: 'nearest' });
+  f.titel.focus();
+}
+
+function closeTaskForm() {
+  taskFormOpen = false;
+  editingTaskId = null;
+  renderTasks();
+}
+
 function renderHistory(student) {
   const records = stunden()
     .filter((r) => r.studentId === student.id)
@@ -2676,6 +2978,7 @@ navItems.forEach((item) => {
     else if (page === 'holidays') openHolidays();
     else if (page === 'invoices') openInvoices();
     else if (page === 'exams') openExams();
+    else if (page === 'tasks') openTasks();
     else if (page === 'archive') openArchive();
     else if (page === 'settings') openSettings();
     else openPlaceholder(item.lastChild.textContent.trim());
@@ -2845,6 +3148,96 @@ weekToday.addEventListener('click', () => {
   selectedLesson = null;
   moving = false;
   renderSchedule();
+});
+
+taskSearch.addEventListener('input', renderTasks);
+
+taskNew.addEventListener('click', () => {
+  if (taskFormOpen && !editingTaskId) closeTaskForm();
+  else openTaskForm();
+});
+
+tagEntry.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' || event.key === ',') {
+    event.preventDefault();
+    addTagFromEntry();
+  } else if (event.key === 'Backspace' && tagEntry.value === '' && taskTags.length > 0) {
+    taskTags.pop();
+    renderTagChips();
+  }
+});
+
+tagEntry.addEventListener('change', () => {
+  if (allTags().some((t) => t.name === tagEntry.value)) addTagFromEntry();
+});
+
+document.getElementById('tag-input').addEventListener('click', () => tagEntry.focus());
+
+taskAttach.addEventListener('click', async () => {
+  try {
+    const files = await window.api.pickFiles();
+    if (files.length === 0) return;
+    files.slice(1).forEach((f) => window.api.deleteFile(f.file));
+    if (taskFileAdded) window.api.deleteFile(taskFileAdded);
+    taskFile = files[0];
+    taskFileAdded = files[0].file;
+    renderTaskFile();
+  } catch (error) {
+    alert(`Die Datei konnte nicht angehängt werden: ${error.message}`);
+  }
+});
+
+document.getElementById('task-cancel').addEventListener('click', () => {
+  if (taskFileAdded) window.api.deleteFile(taskFileAdded);
+  closeTaskForm();
+});
+
+taskDelete.addEventListener('click', async () => {
+  const task = aufgaben().find((a) => a.id === editingTaskId);
+  if (!task) return;
+  if (!confirm(`„${task.titel}“ wirklich löschen?`)) return;
+  const saved = await persist(() => {
+    data.aufgaben = aufgaben().filter((a) => a.id !== task.id);
+  });
+  if (saved) {
+    if (task.datei) window.api.deleteFile(task.datei.file);
+    if (taskFileAdded) window.api.deleteFile(taskFileAdded);
+    closeTaskForm();
+  }
+});
+
+taskForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (tagEntry.value.trim()) addTagFromEntry();
+  const f = taskForm.elements;
+  const url = cleanUrl(f.url.value.trim());
+  if (url === undefined) {
+    alert('Der Link sieht nicht richtig aus. Kopiere ihn am besten direkt aus dem Browser.');
+    return;
+  }
+  if (!url && !taskFile) {
+    alert('Bitte gib einen Link ein oder hänge eine Datei an.');
+    return;
+  }
+  const values = {
+    titel: f.titel.value.trim(),
+    url: url || null,
+    datei: taskFile,
+    tags: taskTags,
+    klassen: [...taskClasses].sort((a, b) => a - b),
+    notiz: f.notiz.value.trim(),
+  };
+  const saved = await persist(() => {
+    data.aufgaben = aufgaben();
+    const existing = data.aufgaben.find((a) => a.id === editingTaskId);
+    if (existing) Object.assign(existing, values);
+    else data.aufgaben.push({ id: crypto.randomUUID(), ...values, angelegt: new Date().toISOString() });
+  });
+  if (saved) {
+    if (taskFileRemoved) window.api.deleteFile(taskFileRemoved);
+    taskFileAdded = null;
+    closeTaskForm();
+  }
 });
 
 examNew.addEventListener('click', () => {

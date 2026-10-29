@@ -13,4 +13,5 @@ contextBridge.exposeInMainWorld('api', {
   pickFiles: () => ipcRenderer.invoke('pick-files'),
   openFile: (file) => ipcRenderer.invoke('open-file', file),
   deleteFile: (file) => ipcRenderer.invoke('delete-file', file),
+  openLink: (url) => ipcRenderer.invoke('open-link', url),
 });
