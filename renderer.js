@@ -2,6 +2,7 @@ const DAYS = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr'];
 const COLORS = ['#FF2E88', '#C6F432', '#3D8BF2', '#F5A623', '#9B6BFF', '#22B573', '#00B8D9', '#F2668F'];
 const RANGE_MONTHS = 3;
 const RANGE_STEP = 1;
+const PAUSE_PREVIEW_DAYS = 14;
 
 let data = { students: [], settings: { hourlyRate: 24 } };
 let canSave = true;
@@ -205,6 +206,22 @@ function lastLessonBefore(student, startDate) {
   return null;
 }
 
+function pauseNote(student) {
+  const list = studentHolidays(student);
+  if (!list) return null;
+  const today = startOfDay(new Date());
+  const todayKey = dayKey(today);
+  const previewKey = dayKey(addDays(today, PAUSE_PREVIEW_DAYS));
+
+  const paused = list
+    .filter((h) => holidayStatus(student, h) === 'pausiert' && h.end >= todayKey && h.start <= previewKey)
+    .sort((a, b) => a.start.localeCompare(b.start))[0];
+  if (!paused) return null;
+
+  if (paused.start <= todayKey) return `pausiert bis ${longDate(parseDay(paused.end))}`;
+  return `pausiert ab ${longDate(parseDay(paused.start))}`;
+}
+
 function setHolidayStatus(ids, key, status) {
   return persist(() => {
     ids.forEach((id) => {
@@ -228,6 +245,7 @@ async function refreshHolidays() {
   }
   if (currentPage === 'holidays') renderHolidays();
   if (currentPage === 'overview') renderOverview();
+  if (currentPage === 'students') renderStudents();
 }
 
 function setActiveNav(activeItem) {
@@ -529,6 +547,10 @@ function studentRow(student) {
     if (event.key === 'Enter') openForm(student);
   });
 
+  const first = nameCell(student);
+  const pause = pauseNote(student);
+  if (pause) first.append(el('div', 'hand', pause));
+
   const timeCell = el('div');
   const times = student.termine.map((t) => `${DAYS[t.tag]} ${t.zeit}`).join(', ');
   timeCell.append(el('div', 'student-time', times || 'kein Termin'), el('div', 'student-meta', `${student.dauer} Minuten`));
@@ -540,7 +562,7 @@ function studentRow(student) {
     lastCell.append(el('div', 'student-time', formatEuro(priceFor(student.dauer))), el('div', 'student-meta', 'pro Stunde'));
   }
 
-  row.append(nameCell(student), artCell(student), timeCell, lastCell);
+  row.append(first, artCell(student), timeCell, lastCell);
   return row;
 }
 
