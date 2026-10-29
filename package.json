@@ -4,12 +4,14 @@
   "description": "Mac-App zum Verwalten meiner Nachhilfeschüler, mit Schnellzugriff über die Menüleiste",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "package": "electron-packager . Nachhilfe --platform=darwin --out=dist --overwrite"
   },
   "author": "Darleen Fritz",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@electron/packager": "^20.3.0",
     "electron": "^45.0.0"
   }
 }
