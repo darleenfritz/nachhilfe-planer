@@ -1436,3 +1436,112 @@ h1 em {
   font-size: 20px;
   color: var(--muted);
 }
+
+.toolbar-actions {
+  display: flex;
+  gap: 6px;
+}
+
+#extra-toggle.active {
+  background: var(--lime);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.extra-form {
+  flex-direction: column;
+  align-items: stretch;
+  margin: 0 0 18px;
+}
+
+.extra-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 20px;
+}
+
+.extra-fields .field {
+  margin-top: 4px;
+}
+
+.extra-fields .field:first-child {
+  flex: 1 1 200px;
+}
+
+.extra-form .field input,
+.extra-form .field select,
+.move-row .field input {
+  font-size: 20px;
+}
+
+.move-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0 18px;
+  width: 100%;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+
+.move-row .field {
+  margin-top: 0;
+}
+
+.wg-lesson-time,
+.wg-lesson-note {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wg-day.weekend {
+  flex: 0.6 1 0;
+}
+
+.wg-day.weekend .wg-body {
+  background: var(--paper-dark);
+}
+
+.wg-day.weekend .wg-day-name {
+  color: var(--muted);
+}
+
+.nachhol-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 6px 0 10px;
+}
+
+.nachhol-count {
+  font-family: var(--serif);
+  font-size: 44px;
+  line-height: 1;
+}
+
+.nachhol-count small {
+  margin-left: 8px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.nachhol-row {
+  display: grid;
+  grid-template-columns: 50px 170px 1fr;
+  gap: 12px;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.nachhol-delta {
+  font-family: var(--serif);
+  font-size: 20px;
+}
+
+.nachhol-delta.plus {
+  color: var(--pink);
+}

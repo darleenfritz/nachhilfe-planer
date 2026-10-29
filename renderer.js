@@ -1,12 +1,14 @@
-const DAYS = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr'];
-const WEEKDAYS_LONG = ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'];
+const DAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+const WEEKDAYS_LONG = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 const COLORS = ['#FF2E88', '#C6F432', '#3D8BF2', '#F5A623', '#9B6BFF', '#22B573', '#00B8D9', '#F2668F'];
 const DURATIONS = [30, 45, 50, 60];
 const RANGE_MONTHS = 3;
 const RANGE_STEP = 1;
 const PAUSE_PREVIEW_DAYS = 14;
 const LOOKBACK_DAYS = 60;
-const DAY_START = 13 * 60;
+const NORMAL_START = 13 * 60;
+const REAL_START = 10 * 60;
+const FREE_START = 13 * 60;
 const DAY_END = 20 * 60;
 const SLOT = 15;
 const SLOT_HEIGHT = 19;
@@ -28,6 +30,8 @@ let weekStart = currentWeekStart();
 let editingBlocks = false;
 let drag = null;
 let selectedLesson = null;
+let extraOpen = false;
+let moving = false;
 
 const navItems = document.querySelectorAll('.nav-item');
 const studentsNav = document.querySelector('[data-page="students"]');
@@ -50,6 +54,11 @@ const termine = document.getElementById('termine');
 const terminTemplate = document.getElementById('termin-template');
 const historySection = document.getElementById('history-section');
 const lessonHistory = document.getElementById('lesson-history');
+const nachholSection = document.getElementById('nachhol-section');
+const nachholCount = document.getElementById('nachhol-count');
+const nachholHistory = document.getElementById('nachhol-history');
+const nachholMinus = document.getElementById('nachhol-minus');
+const nachholPlus = document.getElementById('nachhol-plus');
 const studentList = document.getElementById('student-list');
 const studentsEmpty = document.getElementById('students-empty');
 const archiveList = document.getElementById('archive-list');
@@ -62,6 +71,10 @@ const autostartToggle = document.getElementById('autostart-toggle');
 const modeButtons = document.querySelectorAll('[data-mode]');
 const blockToggle = document.getElementById('block-toggle');
 const blockHint = document.getElementById('block-hint');
+const extraToggle = document.getElementById('extra-toggle');
+const extraForm = document.getElementById('extra-form');
+const extraStudent = document.getElementById('extra-student');
+const extraNachholRow = document.getElementById('extra-nachhol-row');
 const weekPrev = document.getElementById('week-prev');
 const weekNext = document.getElementById('week-next');
 const weekToday = document.getElementById('week-today');
@@ -74,6 +87,10 @@ const lessonDetailKicker = document.getElementById('lesson-detail-kicker');
 const lessonDetailTitle = document.getElementById('lesson-detail-title');
 const lessonDetailMeta = document.getElementById('lesson-detail-meta');
 const lessonDetailButtons = document.getElementById('lesson-detail-buttons');
+const moveRow = document.getElementById('move-row');
+const moveDate = document.getElementById('move-date');
+const moveTime = document.getElementById('move-time');
+const moveSave = document.getElementById('move-save');
 const freeTitle = document.getElementById('free-title');
 const freeList = document.getElementById('free-list');
 const freeCopy = document.getElementById('free-copy');
@@ -110,9 +127,14 @@ function addMonths(date, months) {
   return new Date(date.getFullYear(), date.getMonth() + months, 1);
 }
 
+function mondayOf(date) {
+  const day = startOfDay(date);
+  return addDays(day, -((day.getDay() + 6) % 7));
+}
+
 function currentWeekStart() {
   const today = startOfDay(new Date());
-  const monday = addDays(today, -((today.getDay() + 6) % 7));
+  const monday = mondayOf(today);
   return today.getDay() === 0 || today.getDay() === 6 ? addDays(monday, 7) : monday;
 }
 
@@ -141,6 +163,13 @@ function nowMinutes() {
   return now.getHours() * 60 + now.getMinutes();
 }
 
+function lessonIsOver(datum, zeit, dauer) {
+  const todayKey = dayKey(new Date());
+  if (datum < todayKey) return true;
+  if (datum > todayKey) return false;
+  return nowMinutes() >= toMinutes(zeit) + dauer;
+}
+
 function formatTime(minutes) {
   return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
 }
@@ -167,6 +196,10 @@ function shortMonth(date) {
 
 function longDate(date) {
   return date.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+function shortDate(date) {
+  return `${DAYS[date.getDay()]}, ${date.getDate()}. ${shortMonth(date)} ${date.getFullYear()}`;
 }
 
 function weekdayName(date) {
@@ -221,6 +254,10 @@ function byFirstName(a, b) {
 
 function activeStudents() {
   return data.students.filter((s) => !s.archiviert).sort(byFirstName);
+}
+
+function activeStudent(id) {
+  return data.students.find((s) => s.id === id && !s.archiviert) || null;
 }
 
 async function persist(change) {
@@ -299,27 +336,58 @@ function stunden() {
   return data.stunden || [];
 }
 
+function sonderTermine() {
+  return data.sonderTermine || [];
+}
+
+function nachholKorrekturen() {
+  return data.nachholKorrekturen || [];
+}
+
 function findRecord(studentId, datum, zeit) {
   return stunden().find((r) => r.studentId === studentId && r.datum === datum && r.zeit === zeit) || null;
 }
 
+function movedTo(studentId, datum, zeit) {
+  return sonderTermine().find((s) => s.studentId === studentId && s.ersetzt && s.ersetzt.datum === datum && s.ersetzt.zeit === zeit) || null;
+}
+
+function sonderAt(studentId, datum, zeit) {
+  return sonderTermine().find((s) => s.studentId === studentId && s.datum === datum && s.zeit === zeit) || null;
+}
+
+function sonderNote(sonder) {
+  if (sonder.ersetzt) return `Ersatz für ${DAYS[parseDay(sonder.ersetzt.datum).getDay()]}`;
+  return sonder.nachholung ? 'Nachholstunde' : 'Zusatzstunde';
+}
+
 function occurrencesOn(date) {
   const weekday = date.getDay();
-  if (weekday === 0 || weekday === 6) return [];
   const datum = dayKey(date);
   const result = [];
-  activeStudents().forEach((student) => {
-    if (isPausedOn(student, date)) return;
-    student.termine
-      .filter((t) => t.tag === weekday)
-      .forEach((t) => result.push({ student, date, datum, zeit: t.zeit, start: toMinutes(t.zeit), dauer: student.dauer }));
-  });
+
+  if (weekday >= 1 && weekday <= 5) {
+    activeStudents().forEach((student) => {
+      if (isPausedOn(student, date)) return;
+      student.termine
+        .filter((t) => t.tag === weekday && !movedTo(student.id, datum, t.zeit))
+        .forEach((t) => result.push({ student, date, datum, zeit: t.zeit, start: toMinutes(t.zeit), dauer: student.dauer, sonder: null }));
+    });
+  }
+
+  sonderTermine()
+    .filter((s) => s.datum === datum)
+    .forEach((s) => {
+      const student = activeStudent(s.studentId);
+      if (student) result.push({ student, date, datum, zeit: s.zeit, start: toMinutes(s.zeit), dauer: s.dauer, sonder: s });
+    });
+
   return result;
 }
 
 function isLastInMonth(student, date) {
   for (let day = addDays(date, 1); day.getMonth() === date.getMonth(); day = addDays(day, 1)) {
-    if (lessonDays(student).includes(day.getDay()) && !isPausedOn(student, day)) return false;
+    if (occurrencesOn(day).some((o) => o.student.id === student.id)) return false;
   }
   return true;
 }
@@ -345,6 +413,50 @@ function pendingLessons() {
   return result.sort((a, b) => a.datum.localeCompare(b.datum) || a.start - b.start);
 }
 
+function nachholEvents(student) {
+  if (student.art !== 'plattform') return [];
+  const events = [];
+  const today = startOfDay(new Date());
+  const createdKey = student.angelegt ? dayKey(new Date(student.angelegt)) : '0000-00-00';
+
+  stunden()
+    .filter((r) => r.studentId === student.id && r.status === 'ausgefallen' && r.datum >= createdKey)
+    .forEach((r) => {
+      const sonder = sonderAt(student.id, r.datum, r.zeit);
+      const who = r.abgesagtVon === 'ich' ? 'mir' : 'Schüler';
+      if (!sonder) events.push({ datum: r.datum, delta: 1, text: `ausgefallen, abgesagt von ${who}` });
+      else if (sonder.ersetzt) events.push({ datum: r.datum, delta: 1, text: `Ersatztermin ausgefallen, abgesagt von ${who}` });
+    });
+
+  sonderTermine()
+    .filter((s) => s.studentId === student.id && s.nachholung && s.datum >= createdKey)
+    .forEach((s) => {
+      const record = findRecord(student.id, s.datum, s.zeit);
+      const cancelled = Boolean(record) && record.status === 'ausgefallen';
+      if (!cancelled && lessonIsOver(s.datum, s.zeit, s.dauer)) events.push({ datum: s.datum, delta: -1, text: 'Nachholstunde gemacht' });
+    });
+
+  const startKeys = [createdKey, data.stundenAb || dayKey(today)].sort();
+  const first = parseDay(startKeys[1]);
+  for (let day = first; day <= today; day = addDays(day, 1)) {
+    if (!isPausedOn(student, day)) continue;
+    const datum = dayKey(day);
+    student.termine
+      .filter((t) => t.tag === day.getDay() && !movedTo(student.id, datum, t.zeit))
+      .forEach(() => events.push({ datum, delta: 1, text: 'Stunde in pausierten Ferien' }));
+  }
+
+  nachholKorrekturen()
+    .filter((k) => k.studentId === student.id)
+    .forEach((k) => events.push({ datum: k.datum, delta: k.delta, text: 'Korrektur von Hand' }));
+
+  return events.sort((a, b) => b.datum.localeCompare(a.datum));
+}
+
+function nachholStand(student) {
+  return (student.nachholStart || 0) + nachholEvents(student).reduce((sum, e) => sum + e.delta, 0);
+}
+
 function saveLesson(occ, values) {
   const art = occ.student.art;
   return persist(() => {
@@ -361,6 +473,7 @@ function saveLesson(occ, values) {
       thema: values.thema || '',
       letzteImMonat: Boolean(values.letzteImMonat),
       abgesagtVon: values.abgesagtVon || null,
+      sonderId: occ.sonder ? occ.sonder.id : null,
       erfasst: new Date().toISOString(),
     });
   });
@@ -369,6 +482,19 @@ function saveLesson(occ, values) {
 function resetLesson(occ) {
   return persist(() => {
     data.stunden = stunden().filter((r) => !(r.studentId === occ.student.id && r.datum === occ.datum && r.zeit === occ.zeit));
+  });
+}
+
+function addSonder(sonder) {
+  return persist(() => {
+    data.sonderTermine = [...sonderTermine(), { id: crypto.randomUUID(), ...sonder }];
+  });
+}
+
+function deleteSonder(sonder) {
+  return persist(() => {
+    data.sonderTermine = sonderTermine().filter((s) => s.id !== sonder.id);
+    data.stunden = stunden().filter((r) => !(r.studentId === sonder.studentId && r.datum === sonder.datum && r.zeit === sonder.zeit));
   });
 }
 
@@ -450,10 +576,11 @@ function openStudents() {
 }
 
 function openSchedule() {
-  eyebrow.textContent = `${formatTime(DAY_START)} bis ${formatTime(DAY_END)} Uhr`;
   title.innerHTML = 'Stundenplan<em>.</em>';
   editingBlocks = false;
+  extraOpen = false;
   selectedLesson = null;
+  moving = false;
   showPage('schedule');
   renderSchedule();
 }
@@ -491,9 +618,11 @@ function openForm(student = null) {
   editingId = student ? student.id : null;
   archiveBtn.hidden = !student;
   historySection.hidden = !student;
+  nachholSection.hidden = !student || student.art !== 'plattform';
   if (student) {
     fillForm(student);
     renderHistory(student);
+    if (student.art === 'plattform') renderNachhol(student);
     eyebrow.textContent = 'Schüler bearbeiten';
     title.textContent = `${student.vorname}.`;
   } else {
@@ -659,7 +788,8 @@ function lessonCard(occ) {
   const kicker = el('div', 'eyebrow todo-kicker', 'Stunde · Hat sie stattgefunden?');
   const heading = el('div', 'todo-title', `${fullName(occ.student)} `);
   heading.append(el('em', null, `${weekdayName(occ.date)}, ${occ.date.getDate()}. ${monthName(occ.date)}`));
-  const meta = el('div', 'student-meta', `${formatTime(occ.start)} Uhr · ${occ.dauer} Minuten · ${formatEuro(priceFor(occ.dauer))}`);
+  const extraText = occ.sonder ? ` · ${sonderNote(occ.sonder)}` : '';
+  const meta = el('div', 'student-meta', `${formatTime(occ.start)} Uhr · ${occ.dauer} Minuten · ${formatEuro(priceFor(occ.dauer))}${extraText}`);
 
   const fields = el('div', 'lesson-fields');
   const topic = el('input', 'lesson-topic');
@@ -737,14 +867,18 @@ function renderOverview() {
   overviewEmpty.hidden = cards.length > 0;
 }
 
+function viewStart() {
+  return scheduleMode === 'real' ? REAL_START : NORMAL_START;
+}
+
 function gridY(minutes) {
-  return ((minutes - DAY_START) / SLOT) * SLOT_HEIGHT;
+  return ((minutes - viewStart()) / SLOT) * SLOT_HEIGHT;
 }
 
 function snapMinutes(pixels) {
   const slot = Math.floor(pixels / SLOT_HEIGHT);
-  const minutes = DAY_START + slot * SLOT;
-  return Math.min(Math.max(minutes, DAY_START), DAY_END - SLOT);
+  const minutes = viewStart() + slot * SLOT;
+  return Math.min(Math.max(minutes, viewStart()), DAY_END - SLOT);
 }
 
 function blockedTimes() {
@@ -766,11 +900,21 @@ function mergeBlocks(blocks) {
   return merged;
 }
 
+function weekDays() {
+  return scheduleMode === 'real' ? [1, 2, 3, 4, 5, 6, 0] : [1, 2, 3, 4, 5];
+}
+
+function dateForTag(tag) {
+  return addDays(weekStart, tag === 0 ? 6 : tag - 1);
+}
+
 function weekLessons() {
   const lessons = [];
+  const sunday = addDays(weekStart, 6);
+
   activeStudents().forEach((student) => {
     student.termine.forEach((termin) => {
-      const date = addDays(weekStart, termin.tag - 1);
+      const date = dateForTag(termin.tag);
       const lesson = {
         student,
         tag: termin.tag,
@@ -782,11 +926,18 @@ function weekLessons() {
         kind: 'normal',
         note: '',
         record: null,
+        sonder: null,
+        movedTo: null,
       };
       if (scheduleMode === 'real') {
+        const moved = movedTo(student.id, lesson.datum, lesson.zeit);
         if (isPausedOn(student, date)) {
           lesson.kind = 'paused';
           lesson.note = 'pausiert';
+        } else if (moved) {
+          lesson.kind = 'moved';
+          lesson.movedTo = moved;
+          lesson.note = `verschoben → ${DAYS[parseDay(moved.datum).getDay()]}`;
         } else {
           lesson.record = findRecord(student.id, lesson.datum, lesson.zeit);
           if (lesson.record && lesson.record.status === 'ausgefallen') {
@@ -798,6 +949,33 @@ function weekLessons() {
       lessons.push(lesson);
     });
   });
+
+  if (scheduleMode === 'real') {
+    sonderTermine()
+      .filter((s) => s.datum >= dayKey(weekStart) && s.datum <= dayKey(sunday))
+      .forEach((sonder) => {
+        const student = activeStudent(sonder.studentId);
+        if (!student) return;
+        const date = parseDay(sonder.datum);
+        const record = findRecord(student.id, sonder.datum, sonder.zeit);
+        const cancelled = record && record.status === 'ausgefallen';
+        lessons.push({
+          student,
+          tag: date.getDay(),
+          date,
+          datum: sonder.datum,
+          zeit: sonder.zeit,
+          start: toMinutes(sonder.zeit),
+          dauer: sonder.dauer,
+          kind: cancelled ? 'cancelled' : 'extra',
+          note: cancelled ? 'ausgefallen' : sonderNote(sonder),
+          record,
+          sonder,
+          movedTo: null,
+        });
+      });
+  }
+
   return lessons;
 }
 
@@ -825,9 +1003,9 @@ function renderWeekNav() {
     return;
   }
 
-  const friday = addDays(weekStart, 4);
-  const fromText = weekStart.getMonth() === friday.getMonth() ? `${weekStart.getDate()}.` : `${weekStart.getDate()}. ${monthName(weekStart)}`;
-  weekTitle.replaceChildren(`${fromText} `, el('em', null, 'bis'), ` ${friday.getDate()}. ${monthName(friday)}`);
+  const sunday = addDays(weekStart, 6);
+  const fromText = weekStart.getMonth() === sunday.getMonth() ? `${weekStart.getDate()}.` : `${weekStart.getDate()}. ${monthName(weekStart)}`;
+  weekTitle.replaceChildren(`${fromText} `, el('em', null, 'bis'), ` ${sunday.getDate()}. ${monthName(sunday)}`);
   const holidayText = weekHolidayInfo();
   weekInfo.textContent = `KW ${isoWeek(weekStart)}${holidayText ? ` · ${holidayText}` : ''}`;
 }
@@ -882,13 +1060,13 @@ function isSelectedLesson(lesson) {
 }
 
 function lessonBlock(lesson) {
-  const top = Math.max(lesson.start, DAY_START);
+  const top = Math.max(lesson.start, viewStart());
   const bottom = Math.min(lesson.start + lesson.dauer, DAY_END);
   const box = el('div', `wg-lesson ${lesson.kind}`);
   box.style.setProperty('--c', lesson.student.farbe);
   box.style.top = `${gridY(top)}px`;
   box.style.height = `${gridY(bottom) - gridY(top)}px`;
-  box.title = `${fullName(lesson.student)}, ${formatTime(lesson.start)} Uhr, ${lesson.dauer} Minuten`;
+  box.title = `${fullName(lesson.student)}, ${formatTime(lesson.start)} Uhr, ${lesson.dauer} Minuten${lesson.note ? `, ${lesson.note}` : ''}`;
 
   const name = el('div', 'wg-lesson-name', lesson.student.vorname);
   if (lesson.record && lesson.record.status === 'stattgefunden') name.append(el('span', 'wg-check', '✓'));
@@ -900,6 +1078,7 @@ function lessonBlock(lesson) {
     if (isSelectedLesson(lesson)) box.classList.add('selected');
     box.addEventListener('click', () => {
       selectedLesson = isSelectedLesson(lesson) ? null : { studentId: lesson.student.id, datum: lesson.datum, zeit: lesson.zeit };
+      moving = false;
       renderSchedule();
     });
   }
@@ -907,22 +1086,24 @@ function lessonBlock(lesson) {
 }
 
 function renderWeekGrid(lessons) {
+  const start = viewStart();
   const height = `${gridY(DAY_END)}px`;
   const todayKey = dayKey(new Date());
 
   const times = el('div', 'wg-times');
   const timesBody = el('div', 'wg-body');
   timesBody.style.height = height;
-  for (let m = DAY_START; m <= DAY_END; m += 60) {
+  for (let m = start; m <= DAY_END; m += 60) {
     const label = el('div', 'wg-time-label', formatTime(m));
     label.style.top = `${gridY(m)}px`;
     timesBody.append(label);
   }
   times.append(el('div', 'wg-head'), timesBody);
 
-  const columns = [1, 2, 3, 4, 5].map((tag) => {
-    const date = addDays(weekStart, tag - 1);
-    const column = el('div', 'wg-day');
+  const columns = weekDays().map((tag) => {
+    const date = dateForTag(tag);
+    const isWeekend = tag === 0 || tag === 6;
+    const column = el('div', isWeekend ? 'wg-day weekend' : 'wg-day');
 
     const head = el('div', 'wg-head');
     head.append(el('div', 'wg-day-name', DAYS[tag]));
@@ -933,7 +1114,7 @@ function renderWeekGrid(lessons) {
 
     const body = el('div', 'wg-body');
     body.style.height = height;
-    for (let m = DAY_START; m <= DAY_END; m += 60) {
+    for (let m = start; m <= DAY_END; m += 60) {
       const line = el('div', 'wg-hour');
       line.style.top = `${gridY(m)}px`;
       body.append(line);
@@ -942,7 +1123,7 @@ function renderWeekGrid(lessons) {
     blockedTimes()
       .filter((b) => b.tag === tag)
       .forEach((block) => {
-        const from = Math.max(toMinutes(block.von), DAY_START);
+        const from = Math.max(toMinutes(block.von), start);
         const to = Math.min(toMinutes(block.bis), DAY_END);
         if (to <= from) return;
         const box = el('div', 'wg-blocked', 'blockiert');
@@ -956,12 +1137,14 @@ function renderWeekGrid(lessons) {
       });
 
     lessons
-      .filter((l) => l.tag === tag && l.start < DAY_END && l.start + l.dauer > DAY_START)
+      .filter((l) => l.tag === tag && l.start < DAY_END && l.start + l.dauer > start)
       .forEach((lesson) => body.append(lessonBlock(lesson)));
 
-    body.addEventListener('pointerdown', (event) => startDrag(event, body, tag));
-    body.addEventListener('pointermove', moveDrag);
-    body.addEventListener('pointerup', endDrag);
+    if (!isWeekend) {
+      body.addEventListener('pointerdown', (event) => startDrag(event, body, tag));
+      body.addEventListener('pointermove', moveDrag);
+      body.addEventListener('pointerup', endDrag);
+    }
 
     column.append(head, body);
     return column;
@@ -985,7 +1168,10 @@ function renderScheduleLegend() {
 function lessonActionButton(label, className, action) {
   const btn = el('button', `btn btn-small ${className}`.trim(), label);
   btn.addEventListener('click', async () => {
-    if (await action()) renderSchedule();
+    if (await action()) {
+      moving = false;
+      renderSchedule();
+    }
   });
   return btn;
 }
@@ -993,34 +1179,78 @@ function lessonActionButton(label, className, action) {
 function renderLessonDetail(lessons) {
   const lesson = scheduleMode === 'real' ? lessons.find(isSelectedLesson) : null;
   lessonDetail.hidden = !lesson;
-  if (!lesson) return;
+  if (!lesson) {
+    moving = false;
+    return;
+  }
 
   const { student, date, record } = lesson;
   const isPrivat = student.art === 'privat';
   lessonDetailKicker.textContent = fullName(student);
   lessonDetailTitle.replaceChildren(`${weekdayName(date)}, `, el('em', null, `${date.getDate()}. ${monthName(date)}`));
 
-  let status;
-  if (!record) status = isPrivat ? 'noch nicht bestätigt' : 'findet statt';
-  else if (record.status === 'ausgefallen') status = `ausgefallen, abgesagt von ${record.abgesagtVon === 'ich' ? 'mir' : 'Schüler'}`;
-  else status = `stattgefunden, ${record.dauer} Minuten${record.thema ? `, Thema: ${record.thema}` : ''}`;
-  lessonDetailMeta.textContent = `${formatTime(lesson.start)} Uhr · ${lesson.dauer} Minuten · ${status}`;
-
   const buttons = [];
-  if (record) {
-    buttons.push(lessonActionButton('Zurücksetzen', '', () => resetLesson(lesson)));
+  let status;
+
+  if (lesson.kind === 'moved') {
+    const target = parseDay(lesson.movedTo.datum);
+    status = `verschoben auf ${longDate(target)}, ${formatTime(toMinutes(lesson.movedTo.zeit))} Uhr`;
+    buttons.push(lessonActionButton('Verschiebung aufheben', '', () => deleteSonder(lesson.movedTo)));
   } else {
-    if (isPrivat) {
-      buttons.push(lessonActionButton('Stattgefunden', 'btn-primary', () => saveLesson(lesson, {
-        status: 'stattgefunden',
-        dauer: lesson.dauer,
-        letzteImMonat: isLastInMonth(student, date),
-      })));
+    if (!record) status = isPrivat ? 'noch nicht bestätigt' : 'findet statt';
+    else if (record.status === 'ausgefallen') status = `ausgefallen, abgesagt von ${record.abgesagtVon === 'ich' ? 'mir' : 'Schüler'}`;
+    else status = `stattgefunden, ${record.dauer} Minuten${record.thema ? `, Thema: ${record.thema}` : ''}`;
+    if (lesson.sonder) status = `${sonderNote(lesson.sonder)} · ${status}`;
+
+    if (record) {
+      buttons.push(lessonActionButton('Zurücksetzen', '', () => resetLesson(lesson)));
+    } else {
+      if (isPrivat) {
+        buttons.push(lessonActionButton('Stattgefunden', 'btn-primary', () => saveLesson(lesson, {
+          status: 'stattgefunden',
+          dauer: lesson.dauer,
+          letzteImMonat: isLastInMonth(student, date),
+        })));
+      }
+      buttons.push(lessonActionButton('Ausgefallen: Schüler', '', () => saveLesson(lesson, { status: 'ausgefallen', dauer: lesson.dauer, abgesagtVon: 'schueler' })));
+      buttons.push(lessonActionButton('Ausgefallen: ich', '', () => saveLesson(lesson, { status: 'ausgefallen', dauer: lesson.dauer, abgesagtVon: 'ich' })));
+      if (!lesson.sonder) {
+        const moveBtn = el('button', 'btn btn-small', 'Verschieben');
+        moveBtn.addEventListener('click', () => {
+          moving = !moving;
+          moveDate.value = lesson.datum;
+          moveTime.value = lesson.zeit;
+          moveRow.hidden = !moving;
+        });
+        buttons.push(moveBtn);
+      }
     }
-    buttons.push(lessonActionButton('Ausgefallen: Schüler', '', () => saveLesson(lesson, { status: 'ausgefallen', dauer: lesson.dauer, abgesagtVon: 'schueler' })));
-    buttons.push(lessonActionButton('Ausgefallen: ich', '', () => saveLesson(lesson, { status: 'ausgefallen', dauer: lesson.dauer, abgesagtVon: 'ich' })));
+    if (lesson.sonder) {
+      buttons.push(lessonActionButton('Löschen', 'btn-archive', () => deleteSonder(lesson.sonder)));
+    }
   }
+
+  lessonDetailMeta.textContent = `${formatTime(lesson.start)} Uhr · ${lesson.dauer} Minuten · ${status}`;
   lessonDetailButtons.replaceChildren(...buttons);
+  moveRow.hidden = !moving;
+
+  moveSave.onclick = async () => {
+    if (!moveDate.value || !moveTime.value) return;
+    if (moveDate.value === lesson.datum && moveTime.value === lesson.zeit) return;
+    const saved = await addSonder({
+      studentId: student.id,
+      datum: moveDate.value,
+      zeit: moveTime.value,
+      dauer: lesson.dauer,
+      nachholung: false,
+      ersetzt: { datum: lesson.datum, zeit: lesson.zeit },
+    });
+    if (saved) {
+      moving = false;
+      selectedLesson = null;
+      renderSchedule();
+    }
+  };
 }
 
 function freeTimes(lessons) {
@@ -1031,7 +1261,7 @@ function freeTimes(lessons) {
       ...lessons.filter((l) => l.tag === tag && (l.kind === 'normal' || l.kind === 'extra')).map((l) => [l.start, l.start + l.dauer]),
     ].sort((a, b) => a[0] - b[0]);
 
-    let cursor = DAY_START;
+    let cursor = FREE_START;
     const gaps = [];
     busy.forEach(([from, to]) => {
       if (from > cursor) gaps.push([cursor, Math.min(from, DAY_END)]);
@@ -1044,7 +1274,7 @@ function freeTimes(lessons) {
       .forEach(([from, to]) => {
         const reasons = lessons
           .filter((l) => l.tag === tag && ['paused', 'moved', 'cancelled'].includes(l.kind) && l.start < to && l.start + l.dauer > from)
-          .map((l) => `${l.student.vorname} ${l.note}`);
+          .map((l) => `${l.student.vorname} ${l.kind === 'moved' ? 'verschoben' : l.note}`);
         result.push({ tag, from, to, reasons });
       });
   });
@@ -1086,11 +1316,36 @@ function renderFreeTimes(lessons) {
   };
 }
 
+function updateExtraStudent() {
+  const student = activeStudent(extraStudent.value);
+  if (!student) return;
+  const isPlattform = student.art === 'plattform';
+  extraForm.elements.dauer.value = String(student.dauer);
+  extraNachholRow.hidden = !isPlattform;
+  if (!isPlattform) extraForm.elements.nachholung.checked = false;
+}
+
+function renderExtraForm() {
+  extraToggle.classList.toggle('active', extraOpen);
+  extraForm.hidden = !extraOpen;
+  if (!extraOpen) return;
+  if (extraStudent.options.length === 0 || extraStudent.dataset.filled !== 'yes') {
+    fillSelect(extraStudent, activeStudents().map((s) => ({ value: s.id, text: fullName(s) })), false);
+    extraStudent.dataset.filled = 'yes';
+    const today = startOfDay(new Date());
+    const base = scheduleMode === 'real' && (today < weekStart || today > addDays(weekStart, 6)) ? weekStart : today;
+    extraForm.elements.datum.value = dayKey(base);
+    updateExtraStudent();
+  }
+}
+
 function renderSchedule() {
+  eyebrow.textContent = `${formatTime(viewStart())} bis ${formatTime(DAY_END)} Uhr`;
   modeButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.mode === scheduleMode));
   blockToggle.classList.toggle('active', editingBlocks);
   blockToggle.textContent = editingBlocks ? 'Fertig' : 'Zeiten blockieren';
   blockHint.hidden = !editingBlocks;
+  renderExtraForm();
 
   const lessons = weekLessons();
   renderWeekNav();
@@ -1111,20 +1366,57 @@ function renderHistory(student) {
   }
 
   lessonHistory.replaceChildren(...records.map((record) => {
-    const date = parseDay(record.datum);
     const row = el('div', 'history-row');
-    const dateText = `${DAYS[date.getDay()] || ''}, ${date.getDate()}. ${shortMonth(date)} ${date.getFullYear()}`;
     const statusText = record.status === 'ausgefallen'
       ? `ausgefallen (${record.abgesagtVon === 'ich' ? 'ich' : 'Schüler'})`
       : `${record.dauer} Min`;
     row.append(
-      el('span', 'history-date', dateText),
+      el('span', 'history-date', shortDate(parseDay(record.datum))),
       el('span', `history-status ${record.status}`, statusText),
       el('span', null, record.thema || ''),
       el('span', 'history-price', record.preis ? formatEuro(record.preis) : ''),
     );
     return row;
   }));
+}
+
+function renderNachhol(student) {
+  const stand = nachholStand(student);
+  nachholCount.replaceChildren(String(stand), el('small', null, stand === 1 ? 'Stunde nachzuholen' : 'Stunden nachzuholen'));
+
+  const rows = nachholEvents(student).map((event) => {
+    const row = el('div', 'nachhol-row');
+    const sign = event.delta > 0 ? '+' : '−';
+    row.append(
+      el('span', `nachhol-delta ${event.delta > 0 ? 'plus' : 'minus'}`, `${sign}${Math.abs(event.delta)}`),
+      el('span', 'history-date', shortDate(parseDay(event.datum))),
+      el('span', null, event.text),
+    );
+    return row;
+  });
+
+  const startRow = el('div', 'nachhol-row');
+  startRow.append(
+    el('span', 'nachhol-delta', String(student.nachholStart || 0)),
+    el('span', 'history-date', 'Start'),
+    el('span', null, 'beim Anlegen eingetragen'),
+  );
+
+  nachholHistory.replaceChildren(...rows, startRow);
+}
+
+async function addNachholKorrektur(delta) {
+  const student = data.students.find((s) => s.id === editingId);
+  if (!student) return;
+  const saved = await persist(() => {
+    data.nachholKorrekturen = [...nachholKorrekturen(), {
+      id: crypto.randomUUID(),
+      studentId: student.id,
+      datum: dayKey(new Date()),
+      delta,
+    }];
+  });
+  if (saved) renderNachhol(data.students.find((s) => s.id === editingId));
 }
 
 function fillSelect(select, options, withEmpty) {
@@ -1271,7 +1563,7 @@ function studentRow(student) {
 
   const lastCell = el('div');
   if (student.art === 'plattform') {
-    lastCell.append(el('div', 'student-time', String(student.nachholStart)), el('div', 'student-meta', 'nachzuholen'));
+    lastCell.append(el('div', 'student-time', String(nachholStand(student))), el('div', 'student-meta', 'nachzuholen'));
   } else {
     lastCell.append(el('div', 'student-time', formatEuro(priceFor(student.dauer))), el('div', 'student-meta', 'pro Stunde'));
   }
@@ -1547,6 +1839,8 @@ navItems.forEach((item) => {
 
 newStudentBtn.addEventListener('click', () => openForm());
 document.getElementById('add-termin').addEventListener('click', () => addTermin());
+nachholMinus.addEventListener('click', () => addNachholKorrektur(-1));
+nachholPlus.addEventListener('click', () => addNachholKorrektur(1));
 
 document.getElementById('cancel-form').addEventListener('click', () => {
   setActiveNav(studentsNav);
@@ -1638,6 +1932,7 @@ modeButtons.forEach((btn) => {
   btn.addEventListener('click', () => {
     scheduleMode = btn.dataset.mode;
     selectedLesson = null;
+    moving = false;
     renderSchedule();
   });
 });
@@ -1645,24 +1940,65 @@ modeButtons.forEach((btn) => {
 blockToggle.addEventListener('click', () => {
   editingBlocks = !editingBlocks;
   selectedLesson = null;
+  moving = false;
   renderSchedule();
+});
+
+extraToggle.addEventListener('click', () => {
+  extraOpen = !extraOpen;
+  extraStudent.dataset.filled = 'no';
+  renderSchedule();
+});
+
+extraStudent.addEventListener('change', updateExtraStudent);
+
+document.getElementById('extra-cancel').addEventListener('click', () => {
+  extraOpen = false;
+  renderSchedule();
+});
+
+extraForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const f = extraForm.elements;
+  const student = activeStudent(f.studentId.value);
+  if (!student || !f.datum.value || !f.zeit.value) return;
+
+  const saved = await addSonder({
+    studentId: student.id,
+    datum: f.datum.value,
+    zeit: f.zeit.value,
+    dauer: Number(f.dauer.value),
+    nachholung: student.art === 'plattform' && f.nachholung.checked,
+    ersetzt: null,
+  });
+
+  if (saved) {
+    extraOpen = false;
+    scheduleMode = 'real';
+    weekStart = mondayOf(parseDay(f.datum.value));
+    selectedLesson = null;
+    renderSchedule();
+  }
 });
 
 weekPrev.addEventListener('click', () => {
   weekStart = addDays(weekStart, -7);
   selectedLesson = null;
+  moving = false;
   renderSchedule();
 });
 
 weekNext.addEventListener('click', () => {
   weekStart = addDays(weekStart, 7);
   selectedLesson = null;
+  moving = false;
   renderSchedule();
 });
 
 weekToday.addEventListener('click', () => {
   weekStart = currentWeekStart();
   selectedLesson = null;
+  moving = false;
   renderSchedule();
 });
 
