@@ -1651,3 +1651,7 @@ h1 em {
 .tag-chips{display:contents}
 .tag-input input{flex:1;min-width:160px;border:none !important;background:transparent !important;box-shadow:none !important;padding:4px 0 !important;font-family:var(--sans);font-size:14px;outline:none}
 .tag-remove{border:none;background:none;padding:0 0 0 2px;color:var(--pink);font-size:15px;line-height:1;cursor:pointer}
+
+.backup-box{border:1px solid var(--ink);background:var(--card);padding:12px 16px;margin:10px 0 12px;box-shadow:3px 3px 0 var(--lime)}
+.backup-status{font-family:var(--serif);font-size:22px}
+.backup-folder{margin-top:2px;word-break:break-all}

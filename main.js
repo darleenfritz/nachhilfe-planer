@@ -6,6 +6,9 @@ const POPOVER_WIDTH = 380;
 const POPOVER_HEIGHT = 560;
 const HOLIDAY_API = 'https://openholidaysapi.org/SchoolHolidays';
 const ONE_DAY = 24 * 60 * 60 * 1000;
+const ONE_HOUR = 60 * 60 * 1000;
+const KEEP_BACKUPS = 60;
+const BACKUP_PATTERN = /^daten-\d{4}-\d{2}-\d{2}\.json$/;
 
 let mainWindow = null;
 let popover = null;
@@ -42,6 +45,68 @@ function loadData() {
 
 function saveData(data) {
   writeJson(dataFile(), data);
+}
+
+function todayKey() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+function defaultBackupFolder() {
+  const icloud = path.join(app.getPath('home'), 'Library', 'Mobile Documents', 'com~apple~CloudDocs');
+  if (fs.existsSync(icloud)) return path.join(icloud, 'Nachhilfe-Backup');
+  return path.join(app.getPath('documents'), 'Nachhilfe-Backup');
+}
+
+function backupFolder(data) {
+  return (data && data.settings && data.settings.backupOrdner) || defaultBackupFolder();
+}
+
+function backupFiles(folder) {
+  try {
+    return fs.readdirSync(folder).filter((name) => BACKUP_PATTERN.test(name)).sort();
+  } catch (error) {
+    return [];
+  }
+}
+
+function runBackup(data = loadData()) {
+  const folder = backupFolder(data);
+  fs.mkdirSync(folder, { recursive: true });
+  writeJson(path.join(folder, `daten-${todayKey()}.json`), data);
+  const files = backupFiles(folder);
+  files.slice(0, Math.max(0, files.length - KEEP_BACKUPS)).forEach((name) => fs.unlinkSync(path.join(folder, name)));
+  return backupInfo(data);
+}
+
+function backupInfo(data = loadData()) {
+  const folder = backupFolder(data);
+  const files = backupFiles(folder);
+  const last = files[files.length - 1];
+  return {
+    folder,
+    count: files.length,
+    last: last ? fs.statSync(path.join(folder, last)).mtime.toISOString() : null,
+  };
+}
+
+function safeBackup(data) {
+  try {
+    runBackup(data);
+  } catch (error) {
+    console.error('Sicherung fehlgeschlagen:', error);
+  }
+}
+
+async function chooseBackupFolder() {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Ordner für Sicherungen wählen',
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
 }
 
 function readHolidayCache() {
@@ -253,6 +318,11 @@ app.whenReady().then(() => {
   }
 });
 
+app.whenReady().then(() => {
+  safeBackup();
+  setInterval(() => safeBackup(), ONE_HOUR);
+});
+
 app.on('before-quit', () => {
   quitting = true;
 });
@@ -261,7 +331,10 @@ app.on('activate', openMainWindow);
 app.on('window-all-closed', () => {});
 ipcMain.on('open-main-window', openMainWindow);
 ipcMain.handle('load-data', () => loadData());
-ipcMain.handle('save-data', (event, data) => saveData(data));
+ipcMain.handle('save-data', (event, data) => {
+  saveData(data);
+  safeBackup(data);
+});
 ipcMain.handle('get-autostart', () => getAutostart());
 ipcMain.handle('set-autostart', (event, enabled) => setAutostart(enabled));
 ipcMain.handle('load-holidays', (event, codes) => loadHolidays(codes));
@@ -271,3 +344,11 @@ ipcMain.handle('pick-files', () => pickFiles());
 ipcMain.handle('open-file', (event, file) => shell.openPath(attachPath(file)));
 ipcMain.handle('delete-file', (event, file) => deleteFile(file));
 ipcMain.handle('open-link', (event, url) => openLink(url));
+ipcMain.handle('backup-info', () => backupInfo());
+ipcMain.handle('backup-now', () => runBackup());
+ipcMain.handle('choose-backup-folder', () => chooseBackupFolder());
+ipcMain.handle('open-backup-folder', () => {
+  const folder = backupFolder(loadData());
+  fs.mkdirSync(folder, { recursive: true });
+  return shell.openPath(folder);
+});

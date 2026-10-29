@@ -14,4 +14,8 @@ contextBridge.exposeInMainWorld('api', {
   openFile: (file) => ipcRenderer.invoke('open-file', file),
   deleteFile: (file) => ipcRenderer.invoke('delete-file', file),
   openLink: (url) => ipcRenderer.invoke('open-link', url),
+  backupInfo: () => ipcRenderer.invoke('backup-info'),
+  backupNow: () => ipcRenderer.invoke('backup-now'),
+  chooseBackupFolder: () => ipcRenderer.invoke('choose-backup-folder'),
+  openBackupFolder: () => ipcRenderer.invoke('open-backup-folder'),
 });

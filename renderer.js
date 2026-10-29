@@ -132,6 +132,9 @@ const settingsForm = document.getElementById('settings-form');
 const ratePreview = document.getElementById('rate-preview');
 const settingsSaved = document.getElementById('settings-saved');
 const autostartToggle = document.getElementById('autostart-toggle');
+const backupStatus = document.getElementById('backup-status');
+const backupFolderText = document.getElementById('backup-folder');
+const backupNowBtn = document.getElementById('backup-now');
 const modeButtons = document.querySelectorAll('[data-mode]');
 const blockToggle = document.getElementById('block-toggle');
 const blockHint = document.getElementById('block-hint');
@@ -1011,6 +1014,30 @@ async function openSettings() {
     autostartToggle.checked = await window.api.getAutostart();
   } catch (error) {
     autostartToggle.disabled = true;
+  }
+  renderBackupInfo();
+}
+
+function shortFolder(folder) {
+  const icloud = folder.indexOf('com~apple~CloudDocs');
+  if (icloud >= 0) return `iCloud Drive${folder.slice(icloud + 'com~apple~CloudDocs'.length)}`;
+  return folder.replace(/^\/Users\/[^/]+/, '~');
+}
+
+async function renderBackupInfo(info = null) {
+  try {
+    const current = info || await window.api.backupInfo();
+    if (current.last) {
+      const date = new Date(current.last);
+      const time = date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      backupStatus.textContent = `Letzte Sicherung: ${longDate(date)} um ${time} Uhr`;
+    } else {
+      backupStatus.textContent = 'Noch keine Sicherung vorhanden.';
+    }
+    backupFolderText.textContent = `${shortFolder(current.folder)} · ${current.count} ${current.count === 1 ? 'Datei' : 'Dateien'}`;
+  } catch (error) {
+    backupStatus.textContent = 'Die Sicherung konnte nicht gelesen werden.';
+    backupFolderText.textContent = error.message;
   }
 }
 
@@ -3065,6 +3092,32 @@ settingsForm.addEventListener('submit', async (event) => {
       settingsSaved.hidden = true;
     }, 2500);
   }
+});
+
+backupNowBtn.addEventListener('click', async () => {
+  try {
+    await renderBackupInfo(await window.api.backupNow());
+    backupNowBtn.textContent = 'Gesichert!';
+  } catch (error) {
+    alert(`Die Sicherung hat nicht geklappt: ${error.message}`);
+  }
+  setTimeout(() => {
+    backupNowBtn.textContent = 'Jetzt sichern';
+  }, 2000);
+});
+
+document.getElementById('backup-open').addEventListener('click', async () => {
+  const error = await window.api.openBackupFolder();
+  if (error) alert(`Der Ordner konnte nicht geöffnet werden: ${error}`);
+});
+
+document.getElementById('backup-choose').addEventListener('click', async () => {
+  const folder = await window.api.chooseBackupFolder();
+  if (!folder) return;
+  const saved = await persist(() => {
+    data.settings.backupOrdner = folder;
+  });
+  if (saved) renderBackupInfo(await window.api.backupNow());
 });
 
 autostartToggle.addEventListener('change', async () => {
