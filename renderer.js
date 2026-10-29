@@ -120,6 +120,14 @@ function schoolYearStart(date = new Date()) {
   return new Date(year, 8, 1);
 }
 
+function schoolYear(date = new Date()) {
+  return schoolYearStart(date).getFullYear();
+}
+
+function schoolYearLabel(year) {
+  return `${year}/${String(year + 1).slice(2)}`;
+}
+
 function greeting(hour) {
   if (hour < 11) return 'Guten Morgen';
   if (hour < 18) return 'Guten Tag';
@@ -197,10 +205,23 @@ function sameRegion(student) {
   return activeStudents().filter((s) => s.id !== student.id && studentCode(s) === code);
 }
 
+function lessonDays(student) {
+  return student.termine.map((t) => t.tag);
+}
+
 function lastLessonBefore(student, startDate) {
-  const weekdays = student.termine.map((t) => t.tag);
+  const weekdays = lessonDays(student);
   for (let i = 1; i <= 14; i++) {
     const day = addDays(startDate, -i);
+    if (weekdays.includes(day.getDay())) return day;
+  }
+  return null;
+}
+
+function firstLessonAfter(student, endDate) {
+  const weekdays = lessonDays(student);
+  for (let i = 1; i <= 14; i++) {
+    const day = addDays(endDate, i);
     if (weekdays.includes(day.getDay())) return day;
   }
   return null;
@@ -290,8 +311,7 @@ function openArchive() {
 }
 
 function openHolidays() {
-  const start = schoolYearStart();
-  eyebrow.textContent = `Schuljahr ${start.getFullYear()}/${String(start.getFullYear() + 1).slice(2)}`;
+  eyebrow.textContent = `Schuljahr ${schoolYearLabel(schoolYear())}`;
   title.innerHTML = 'Ferien<em>.</em>';
   showPage('holidays');
   renderHolidays();
@@ -356,6 +376,25 @@ function holidayTodos() {
   return [...groups.values()].sort((a, b) => a.holiday.start.localeCompare(b.holiday.start));
 }
 
+function summerEnd(student, year) {
+  const list = studentHolidays(student);
+  if (!list) return null;
+  const summer = list.find((h) => h.name.includes('Sommer') && h.end >= `${year}-07-01` && h.end <= `${year}-10-31`);
+  return summer ? parseDay(summer.end) : null;
+}
+
+function classTodos() {
+  const today = startOfDay(new Date());
+  const year = schoolYear(today);
+
+  return activeStudents().filter((student) => {
+    if (student.schuljahrGeprueft >= year) return false;
+    const end = summerEnd(student, year) || new Date(year, 7, 31);
+    const askFrom = firstLessonAfter(student, end) || addDays(end, 1);
+    return today >= askFrom;
+  });
+}
+
 function lessonHint(lastLesson) {
   if (!lastLesson) return 'kein Termin vorher';
   const diff = dayDiff(startOfDay(new Date()), lastLesson);
@@ -406,11 +445,66 @@ function todoCard(group) {
   return card;
 }
 
+async function markClassChecked(student, newClass) {
+  const year = schoolYear();
+  return persist(() => {
+    const target = data.students.find((s) => s.id === student.id);
+    target.schuljahrGeprueft = year;
+    if (newClass !== undefined) target.klasse = newClass;
+  });
+}
+
+function classCard(students) {
+  const year = schoolYear();
+  const card = el('article', 'todo-card');
+
+  const kicker = el('div', 'eyebrow todo-kicker', 'Neues Schuljahr');
+  const heading = el('div', 'todo-title', 'Klassen prüfen ');
+  heading.append(el('em', null, schoolYearLabel(year)));
+  const hint = el('div', 'student-meta', 'Die Sommerferien sind vorbei. Stimmen die Klassen noch?');
+
+  const rows = el('div', 'todo-rows');
+  students.forEach((student) => {
+    const row = el('div', 'todo-row');
+    const name = el('div', 'todo-name', fullName(student));
+    name.append(el('small', null, student.klasse ? `bisher Klasse ${student.klasse}` : 'keine Klasse eingetragen'));
+
+    const actions = el('div', 'todo-actions');
+    if (student.klasse) {
+      const up = el('button', 'btn btn-small btn-primary', `Auf ${student.klasse + 1} setzen`);
+      up.addEventListener('click', async () => {
+        if (await markClassChecked(student, student.klasse + 1)) renderOverview();
+      });
+      actions.append(up);
+    }
+
+    const keep = el('button', 'btn btn-small', 'Passt so');
+    keep.addEventListener('click', async () => {
+      if (await markClassChecked(student)) renderOverview();
+    });
+
+    const edit = el('button', 'btn btn-small', 'Bearbeiten');
+    edit.addEventListener('click', async () => {
+      if (await markClassChecked(student)) openForm(data.students.find((s) => s.id === student.id));
+    });
+
+    actions.append(keep, edit);
+    row.append(name, actions);
+    rows.append(row);
+  });
+
+  card.append(kicker, heading, hint, rows);
+  return card;
+}
+
 function renderOverview() {
-  const groups = holidayTodos();
-  todoList.replaceChildren(...groups.map(todoCard));
-  todoBlock.hidden = groups.length === 0;
-  overviewEmpty.hidden = groups.length > 0;
+  const cards = holidayTodos().map(todoCard);
+  const classStudents = classTodos();
+  if (classStudents.length > 0) cards.unshift(classCard(classStudents));
+
+  todoList.replaceChildren(...cards);
+  todoBlock.hidden = cards.length === 0;
+  overviewEmpty.hidden = cards.length > 0;
 }
 
 function fillSelect(select, options, withEmpty) {
@@ -874,6 +968,7 @@ form.addEventListener('submit', async (event) => {
         ...values,
         farbe: COLORS[data.students.length % COLORS.length],
         archiviert: false,
+        schuljahrGeprueft: schoolYear(),
         angelegt: new Date().toISOString(),
       });
     }
@@ -964,6 +1059,17 @@ async function init() {
     canSave = false;
     alert(`Deine Daten konnten nicht geladen werden: ${error.message}`);
   }
+
+  const year = schoolYear();
+  const missing = data.students.filter((s) => s.schuljahrGeprueft === undefined);
+  if (canSave && missing.length > 0) {
+    await persist(() => {
+      missing.forEach((s) => {
+        data.students.find((t) => t.id === s.id).schuljahrGeprueft = year;
+      });
+    });
+  }
+
   openOverview();
   refreshHolidays();
 }
