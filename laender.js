@@ -30,15 +30,15 @@ const LAENDER = {
     name: 'Österreich',
     regionLabel: 'Bundesland',
     regionen: [
-      { code: 'AT-1', name: 'Burgenland' },
-      { code: 'AT-2', name: 'Kärnten' },
-      { code: 'AT-3', name: 'Niederösterreich' },
-      { code: 'AT-4', name: 'Oberösterreich' },
-      { code: 'AT-5', name: 'Salzburg' },
-      { code: 'AT-6', name: 'Steiermark' },
-      { code: 'AT-7', name: 'Tirol' },
-      { code: 'AT-8', name: 'Vorarlberg' },
-      { code: 'AT-9', name: 'Wien' },
+      { code: 'AT-1', api: 'AT-BL', name: 'Burgenland' },
+      { code: 'AT-2', api: 'AT-KÄ', name: 'Kärnten' },
+      { code: 'AT-3', api: 'AT-NÖ', name: 'Niederösterreich' },
+      { code: 'AT-4', api: 'AT-OÖ', name: 'Oberösterreich' },
+      { code: 'AT-5', api: 'AT-SB', name: 'Salzburg' },
+      { code: 'AT-6', api: 'AT-SM', name: 'Steiermark' },
+      { code: 'AT-7', api: 'AT-TI', name: 'Tirol' },
+      { code: 'AT-8', api: 'AT-VA', name: 'Vorarlberg' },
+      { code: 'AT-9', api: 'AT-WI', name: 'Wien' },
     ],
     schulformen: [
       'Volksschule', 'Mittelschule', 'AHS', 'BHS', 'BMS',
@@ -84,3 +84,9 @@ const LAENDER = {
     noten: { beste: 6, schlechteste: 1, schritt: 0.5 },
   },
 };
+
+function apiCode(landCode, regionCode) {
+  const region = LAENDER[landCode].regionen.find((r) => r.code === regionCode);
+  if (!region) return null;
+  return region.api || region.code;
+}

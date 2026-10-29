@@ -4,6 +4,8 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain } = require
 
 const POPOVER_WIDTH = 380;
 const POPOVER_HEIGHT = 560;
+const HOLIDAY_API = 'https://openholidaysapi.org/SchoolHolidays';
+const ONE_DAY = 24 * 60 * 60 * 1000;
 
 let mainWindow = null;
 let popover = null;
@@ -13,6 +15,17 @@ const EMPTY_DATA = { students: [], settings: { hourlyRate: 24 } };
 
 function dataFile() {
   return path.join(app.getPath('userData'), 'daten.json');
+}
+
+function holidayFile() {
+  return path.join(app.getPath('userData'), 'ferien.json');
+}
+
+function writeJson(file, data) {
+  const temp = file + '.tmp';
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(temp, JSON.stringify(data, null, 2));
+  fs.renameSync(temp, file);
 }
 
 function loadData() {
@@ -26,11 +39,62 @@ function loadData() {
 }
 
 function saveData(data) {
-  const file = dataFile();
-  const temp = file + '.tmp';
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(temp, JSON.stringify(data, null, 2));
-  fs.renameSync(temp, file);
+  writeJson(dataFile(), data);
+}
+
+function readHolidayCache() {
+  try {
+    return JSON.parse(fs.readFileSync(holidayFile(), 'utf8'));
+  } catch (error) {
+    return { regions: {} };
+  }
+}
+
+async function fetchRegion(code) {
+  const year = new Date().getFullYear();
+  const url = new URL(HOLIDAY_API);
+  url.searchParams.set('countryIsoCode', code.slice(0, 2));
+  url.searchParams.set('subdivisionCode', code);
+  url.searchParams.set('languageIsoCode', 'DE');
+  url.searchParams.set('validFrom', `${year - 1}-07-01`);
+  url.searchParams.set('validTo', `${year + 1}-09-30`);
+
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!response.ok) throw new Error(`Die Ferien-API antwortet mit Status ${response.status}`);
+  const items = await response.json();
+
+  return items
+    .filter((item) => item.nationwide || (item.subdivisions || []).some((s) => s.code === code))
+    .map((item) => {
+      const name = item.name.find((n) => n.language === 'DE') || item.name[0];
+      return { name: name.text, start: item.startDate, end: item.endDate };
+    });
+}
+
+async function loadHolidays(codes) {
+  const cache = readHolidayCache();
+  const failed = [];
+  let changed = false;
+
+  for (const code of codes) {
+    const entry = cache.regions[code];
+    const isFresh = entry && Date.now() - new Date(entry.fetchedAt).getTime() < ONE_DAY;
+    if (isFresh) continue;
+    try {
+      cache.regions[code] = { fetchedAt: new Date().toISOString(), holidays: await fetchRegion(code) };
+      changed = true;
+    } catch (error) {
+      failed.push(code);
+    }
+  }
+
+  if (changed) writeJson(holidayFile(), cache);
+
+  const holidays = {};
+  for (const code of codes) {
+    holidays[code] = cache.regions[code] ? cache.regions[code].holidays : null;
+  }
+  return { holidays, failed };
 }
 
 function getAutostart() {
@@ -141,3 +205,4 @@ ipcMain.handle('load-data', () => loadData());
 ipcMain.handle('save-data', (event, data) => saveData(data));
 ipcMain.handle('get-autostart', () => getAutostart());
 ipcMain.handle('set-autostart', (event, enabled) => setAutostart(enabled));
+ipcMain.handle('load-holidays', (event, codes) => loadHolidays(codes));

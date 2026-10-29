@@ -2,6 +2,8 @@
 
 :root {
   --paper: #F6F3EC;
+  --paper-dark: #EEE9DE;
+  --card: #FFFDF8;
   --ink: #141414;
   --soft: #3D3A36;
   --muted: #5C5853;
@@ -196,6 +198,12 @@ h1 em {
   min-height: 32px;
   padding: 0 14px;
   font-size: 12px;
+}
+
+.btn-round {
+  width: 38px;
+  min-height: 38px;
+  padding: 0;
 }
 
 .btn-archive {
@@ -569,4 +577,377 @@ h1 em {
   font-size: 24px;
   font-style: normal;
   transform: rotate(-2deg);
+}
+
+.holiday-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.view-switch {
+  display: flex;
+  gap: 6px;
+}
+
+.view-switch .btn.active {
+  background: var(--lime);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--soft);
+}
+
+.legend-swatch {
+  --c: var(--ink);
+  display: inline-block;
+  width: 28px;
+  height: 12px;
+  margin-right: 6px;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.status-pausiert {
+  background: var(--c);
+  border: 1.5px solid var(--ink);
+}
+
+.status-weiter {
+  background: var(--paper);
+  border: 2px solid var(--c);
+}
+
+.status-offen {
+  background: repeating-linear-gradient(45deg, var(--c) 0 3px, transparent 3px 7px);
+  border: 1.5px solid var(--c);
+}
+
+.holiday-notice {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1.5px dashed var(--pink);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--soft);
+}
+
+.range-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0 6px;
+  border-top: 1px solid var(--ink);
+}
+
+.range-title {
+  font-family: var(--serif);
+  font-size: 26px;
+}
+
+.range-title em {
+  color: var(--muted);
+}
+
+.timeline {
+  margin-top: 10px;
+}
+
+.tl-line {
+  display: flex;
+}
+
+.tl-name {
+  flex: 0 0 190px;
+  padding: 12px 12px 12px 0;
+}
+
+.tl-track {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.tl-months {
+  height: 22px;
+}
+
+.tl-month {
+  position: absolute;
+  top: 0;
+  padding-left: 6px;
+  border-left: 1.5px solid var(--ink);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tl-weeks {
+  height: 42px;
+  border-bottom: 1px solid var(--ink);
+}
+
+.tl-week-label {
+  position: absolute;
+  top: 0;
+  padding-left: 5px;
+  white-space: nowrap;
+}
+
+.tl-week-label strong {
+  display: block;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.tl-week-label small {
+  font-size: 9px;
+  color: #8A847B;
+}
+
+.tl-row {
+  border-bottom: 1px solid var(--line);
+}
+
+.tl-student {
+  font-family: var(--serif);
+  font-size: 22px;
+  line-height: 1.05;
+}
+
+.tl-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+}
+
+.tl-student-meta {
+  padding-left: 18px;
+}
+
+.tl-weekend {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--paper-dark);
+}
+
+.tl-week {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--line);
+}
+
+.tl-today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--pink);
+  z-index: 2;
+}
+
+.tl-bar {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  padding: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.tl-bar:hover {
+  transform: translateY(-1px);
+}
+
+.tl-bar.selected {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.tl-missing {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%) rotate(-1deg);
+  font-size: 21px;
+}
+
+.holiday-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  margin-top: 22px;
+  padding: 16px 20px;
+  border: 1.5px solid var(--ink);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.detail-text {
+  flex: 1 1 280px;
+}
+
+.detail-student {
+  color: var(--pink);
+}
+
+.detail-title {
+  font-family: var(--serif);
+  font-size: 28px;
+  line-height: 1.05;
+}
+
+.detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.detail-buttons .btn.chosen {
+  background: var(--lime);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.detail-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.detail-all input {
+  accent-color: var(--ink);
+}
+
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ink);
+  font-size: 12px;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  vertical-align: -1px;
+}
+
+.year-calendar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 22px 26px;
+}
+
+.cal-month-title {
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--ink);
+  font-family: var(--serif);
+  font-size: 22px;
+}
+
+.cal-month-title small {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.cal-weekdays,
+.cal-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+}
+
+.cal-weekdays {
+  margin-bottom: 2px;
+  font-size: 9px;
+  color: #8A847B;
+  text-align: center;
+}
+
+.cal-day {
+  display: flex;
+  flex-direction: column;
+  height: 32px;
+}
+
+.cal-day.weekend {
+  background: var(--paper-dark);
+}
+
+.cal-num {
+  align-self: center;
+  width: 16px;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.cal-day.weekend .cal-num {
+  color: var(--faint);
+}
+
+.cal-day.today .cal-num {
+  border-radius: 50%;
+  background: var(--pink);
+  color: var(--paper);
+}
+
+.cal-stripes {
+  display: flex;
+  gap: 1px;
+  height: 11px;
+  margin: 2px 3px 0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.cal-stripe {
+  flex: 1;
+}
+
+.cal-stripe.pausiert {
+  background: var(--c);
+}
+
+.cal-stripe.offen {
+  background: color-mix(in srgb, var(--c) 40%, transparent);
+}
+
+.cal-stripe.weiter {
+  background: linear-gradient(var(--c), var(--c)) center / 100% 2px no-repeat;
 }

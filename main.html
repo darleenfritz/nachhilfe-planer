@@ -16,14 +16,15 @@
       <button class="nav-item active" data-page="overview"><span class="num">01</span>Übersicht</button>
       <button class="nav-item" data-page="students"><span class="num">02</span>Schüler</button>
       <button class="nav-item" data-page="placeholder"><span class="num">03</span>Stundenplan</button>
-      <button class="nav-item" data-page="placeholder"><span class="num">04</span>Rechnungen</button>
-      <button class="nav-item" data-page="placeholder"><span class="num">05</span>Schulaufgaben</button>
-      <button class="nav-item" data-page="placeholder"><span class="num">06</span>Aufgaben</button>
+      <button class="nav-item" data-page="holidays"><span class="num">04</span>Ferien</button>
+      <button class="nav-item" data-page="placeholder"><span class="num">05</span>Rechnungen</button>
+      <button class="nav-item" data-page="placeholder"><span class="num">06</span>Schulaufgaben</button>
+      <button class="nav-item" data-page="placeholder"><span class="num">07</span>Aufgaben</button>
 
       <div class="spacer"></div>
 
-      <button class="nav-item" data-page="archive"><span class="num">07</span>Archiv</button>
-      <button class="nav-item" data-page="settings"><span class="num">08</span>Einstellungen</button>
+      <button class="nav-item" data-page="archive"><span class="num">08</span>Archiv</button>
+      <button class="nav-item" data-page="settings"><span class="num">09</span>Einstellungen</button>
     </nav>
 
     <main class="main">
@@ -48,6 +49,56 @@
         <div class="empty" id="students-empty">
           Noch keine Schüler angelegt.
           <span class="hand">Leg deinen ersten an!</span>
+        </div>
+      </section>
+
+      <section class="page" id="page-holidays" hidden>
+        <div class="holiday-toolbar">
+          <div class="view-switch">
+            <button class="btn btn-small active" data-view="rows">Zeilen</button>
+            <button class="btn btn-small" data-view="calendar">Kalender</button>
+          </div>
+          <div class="legend">
+            <span><span class="legend-swatch status-pausiert"></span>pausiert</span>
+            <span><span class="legend-swatch status-weiter"></span>macht weiter</span>
+            <span><span class="legend-swatch status-offen"></span>noch offen</span>
+          </div>
+        </div>
+
+        <div class="holiday-notice" id="holiday-notice" hidden></div>
+
+        <div id="holiday-rows-view">
+          <div class="range-nav">
+            <button class="btn btn-round" id="range-prev" aria-label="Frühere Monate">←</button>
+            <span class="range-title" id="range-title"></span>
+            <button class="btn btn-round" id="range-next" aria-label="Spätere Monate">→</button>
+            <button class="btn btn-small" id="range-today">Heute</button>
+          </div>
+
+          <div class="timeline" id="timeline"></div>
+
+          <div class="holiday-detail" id="holiday-detail" hidden>
+            <div class="detail-text">
+              <div class="eyebrow detail-student" id="detail-student"></div>
+              <div class="detail-title" id="detail-title"></div>
+              <div class="student-meta" id="detail-dates"></div>
+            </div>
+            <div class="detail-actions">
+              <div class="detail-buttons">
+                <button class="btn" data-status="weiter">Macht weiter</button>
+                <button class="btn" data-status="pausiert">Pausiert</button>
+              </div>
+              <label class="detail-all" id="detail-all-row">
+                <input type="checkbox" id="detail-all" checked>
+                <span id="detail-all-label"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div id="holiday-calendar-view" hidden>
+          <div class="calendar-legend" id="calendar-legend"></div>
+          <div class="year-calendar" id="year-calendar"></div>
         </div>
       </section>
 

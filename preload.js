@@ -6,4 +6,5 @@ contextBridge.exposeInMainWorld('api', {
   saveData: (data) => ipcRenderer.invoke('save-data', data),
   getAutostart: () => ipcRenderer.invoke('get-autostart'),
   setAutostart: (enabled) => ipcRenderer.invoke('set-autostart', enabled),
+  loadHolidays: (codes) => ipcRenderer.invoke('load-holidays', codes),
 });

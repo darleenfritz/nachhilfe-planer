@@ -1,10 +1,18 @@
 const DAYS = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr'];
 const COLORS = ['#FF2E88', '#C6F432', '#3D8BF2', '#F5A623', '#9B6BFF', '#22B573', '#00B8D9', '#F2668F'];
+const RANGE_MONTHS = 3;
+const RANGE_STEP = 1;
 
 let data = { students: [], settings: { hourlyRate: 24 } };
 let canSave = true;
 let editingId = null;
 let savedTimer = null;
+let currentPage = 'overview';
+let holidays = {};
+let holidayFailed = [];
+let holidayView = 'rows';
+let rangeStart = startOfMonth(new Date());
+let selected = null;
 
 const navItems = document.querySelectorAll('.nav-item');
 const studentsNav = document.querySelector('[data-page="students"]');
@@ -31,6 +39,74 @@ const settingsForm = document.getElementById('settings-form');
 const ratePreview = document.getElementById('rate-preview');
 const settingsSaved = document.getElementById('settings-saved');
 const autostartToggle = document.getElementById('autostart-toggle');
+const viewButtons = document.querySelectorAll('.view-switch .btn');
+const holidayNotice = document.getElementById('holiday-notice');
+const rowsView = document.getElementById('holiday-rows-view');
+const calendarView = document.getElementById('holiday-calendar-view');
+const rangeTitle = document.getElementById('range-title');
+const timeline = document.getElementById('timeline');
+const holidayDetail = document.getElementById('holiday-detail');
+const detailStudent = document.getElementById('detail-student');
+const detailTitle = document.getElementById('detail-title');
+const detailDates = document.getElementById('detail-dates');
+const detailButtons = document.querySelectorAll('.detail-buttons .btn');
+const detailAllRow = document.getElementById('detail-all-row');
+const detailAll = document.getElementById('detail-all');
+const detailAllLabel = document.getElementById('detail-all-label');
+const calendarLegend = document.getElementById('calendar-legend');
+const yearCalendar = document.getElementById('year-calendar');
+
+function startOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function addDays(date, days) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+function addMonths(date, months) {
+  return new Date(date.getFullYear(), date.getMonth() + months, 1);
+}
+
+function dayDiff(from, to) {
+  return Math.round((to - from) / 86400000);
+}
+
+function parseDay(text) {
+  const [year, month, day] = text.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function dayKey(date) {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function isoWeek(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const weekday = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - weekday);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+}
+
+function monthName(date) {
+  return date.toLocaleDateString('de-DE', { month: 'long' });
+}
+
+function shortMonth(date) {
+  return date.toLocaleDateString('de-DE', { month: 'short' }).replace('.', '');
+}
+
+function longDate(date) {
+  return date.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+function schoolYearStart(date = new Date()) {
+  const year = date.getMonth() >= 7 ? date.getFullYear() : date.getFullYear() - 1;
+  return new Date(year, 8, 1);
+}
 
 function greeting(hour) {
   if (hour < 11) return 'Guten Morgen';
@@ -61,6 +137,14 @@ function el(tag, className, text) {
   return node;
 }
 
+function byFirstName(a, b) {
+  return a.vorname.localeCompare(b.vorname, 'de');
+}
+
+function activeStudents() {
+  return data.students.filter((s) => !s.archiviert).sort(byFirstName);
+}
+
 async function persist(change) {
   if (!canSave) {
     alert('Deine Daten konnten beim Start nicht geladen werden. Damit nichts überschrieben wird, ist Speichern gerade gesperrt.');
@@ -78,23 +162,67 @@ async function persist(change) {
   }
 }
 
+function studentCode(student) {
+  return student.region ? apiCode(student.land, student.region) : null;
+}
+
+function studentHolidays(student) {
+  const code = studentCode(student);
+  if (!code) return null;
+  return holidays[code] || [];
+}
+
+function holidayKey(holiday) {
+  return `${holiday.start}_${holiday.end}`;
+}
+
+function holidayStatus(student, holiday) {
+  return (student.ferien && student.ferien[holidayKey(holiday)]) || 'offen';
+}
+
+function sameRegion(student) {
+  const code = studentCode(student);
+  return activeStudents().filter((s) => s.id !== student.id && studentCode(s) === code);
+}
+
+function lastLessonBefore(student, startDate) {
+  const weekdays = student.termine.map((t) => t.tag);
+  for (let i = 1; i <= 14; i++) {
+    const day = addDays(startDate, -i);
+    if (weekdays.includes(day.getDay())) return day;
+  }
+  return null;
+}
+
+async function refreshHolidays() {
+  const codes = [...new Set(activeStudents().map(studentCode).filter(Boolean))];
+  if (codes.length === 0) return;
+  try {
+    const result = await window.api.loadHolidays(codes);
+    holidays = result.holidays;
+    holidayFailed = result.failed;
+  } catch (error) {
+    holidayFailed = codes;
+  }
+  if (currentPage === 'holidays') renderHolidays();
+}
+
 function setActiveNav(activeItem) {
   navItems.forEach((item) => item.classList.toggle('active', item === activeItem));
 }
 
 function showPage(id) {
+  currentPage = id;
   pages.forEach((page) => {
     page.hidden = page.id !== `page-${id}`;
   });
-  newStudentBtn.hidden = id === 'student-form' || id === 'settings';
+  newStudentBtn.hidden = ['student-form', 'settings', 'holidays'].includes(id);
 }
 
 function openOverview() {
   const now = new Date();
-  const weekday = now.toLocaleDateString('de-DE', { weekday: 'long' });
-  const month = now.toLocaleDateString('de-DE', { month: 'long' });
   eyebrow.textContent = `${greeting(now.getHours())}, Darleen`;
-  title.innerHTML = `${weekday}, <em>${now.getDate()}.</em> ${month}`;
+  title.innerHTML = `${now.toLocaleDateString('de-DE', { weekday: 'long' })}, <em>${now.getDate()}.</em> ${monthName(now)}`;
   showPage('overview');
 }
 
@@ -117,6 +245,14 @@ function openArchive() {
   title.innerHTML = 'Archiv<em>.</em>';
   renderArchive();
   showPage('archive');
+}
+
+function openHolidays() {
+  const start = schoolYearStart();
+  eyebrow.textContent = `Schuljahr ${start.getFullYear()}/${String(start.getFullYear() + 1).slice(2)}`;
+  title.innerHTML = 'Ferien<em>.</em>';
+  showPage('holidays');
+  renderHolidays();
 }
 
 async function openSettings() {
@@ -312,7 +448,10 @@ function archivedRow(student) {
       target.archiviert = false;
       delete target.archiviertAm;
     });
-    if (saved) renderArchive();
+    if (saved) {
+      renderArchive();
+      refreshHolidays();
+    }
   });
   actionCell.append(restoreBtn);
 
@@ -320,12 +459,8 @@ function archivedRow(student) {
   return row;
 }
 
-function byFirstName(a, b) {
-  return a.vorname.localeCompare(b.vorname, 'de');
-}
-
 function renderStudents() {
-  const active = data.students.filter((s) => !s.archiviert).sort(byFirstName);
+  const active = activeStudents();
   studentList.replaceChildren(...active.map(studentRow));
   studentList.hidden = active.length === 0;
   studentsEmpty.hidden = active.length > 0;
@@ -338,12 +473,225 @@ function renderArchive() {
   archiveEmpty.hidden = archived.length > 0;
 }
 
+function renderHolidays() {
+  holidayNotice.hidden = holidayFailed.length === 0;
+  holidayNotice.textContent = 'Die Ferien konnten gerade nicht aus dem Internet geladen werden. Du siehst den zuletzt gespeicherten Stand.';
+  viewButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.view === holidayView));
+  rowsView.hidden = holidayView !== 'rows';
+  calendarView.hidden = holidayView !== 'calendar';
+  if (holidayView === 'rows') {
+    renderTimeline();
+    renderDetail();
+  } else {
+    renderCalendar();
+  }
+}
+
+function trackBackground(track, start, end, total) {
+  for (let day = start; day < end; day = addDays(day, 1)) {
+    const left = (dayDiff(start, day) / total) * 100;
+    if (day.getDay() === 0 || day.getDay() === 6) {
+      const weekend = el('div', 'tl-weekend');
+      weekend.style.left = `${left}%`;
+      weekend.style.width = `${100 / total}%`;
+      track.append(weekend);
+    }
+    if (day.getDay() === 1) {
+      const week = el('div', 'tl-week');
+      week.style.left = `${left}%`;
+      track.append(week);
+    }
+  }
+  const today = new Date();
+  if (today >= start && today < end) {
+    const line = el('div', 'tl-today');
+    line.style.left = `${(dayDiff(start, new Date(today.getFullYear(), today.getMonth(), today.getDate())) / total) * 100}%`;
+    track.append(line);
+  }
+}
+
+function renderTimeline() {
+  const start = rangeStart;
+  const end = addMonths(start, RANGE_MONTHS);
+  const last = addDays(end, -1);
+  const total = dayDiff(start, end);
+  const percent = (date) => (dayDiff(start, date) / total) * 100;
+
+  const sameYear = start.getFullYear() === last.getFullYear();
+  rangeTitle.replaceChildren(
+    `${monthName(start)}${sameYear ? '' : ` ${start.getFullYear()}`} `,
+    el('em', null, 'bis'),
+    ` ${monthName(last)} ${last.getFullYear()}`,
+  );
+
+  const monthsLine = el('div', 'tl-line');
+  const monthsTrack = el('div', 'tl-track tl-months');
+  for (let month = start; month < end; month = addMonths(month, 1)) {
+    const label = el('div', 'tl-month', `${monthName(month)} ${month.getFullYear()}`);
+    label.style.left = `${percent(month)}%`;
+    monthsTrack.append(label);
+  }
+  monthsLine.append(el('div', 'tl-name'), monthsTrack);
+
+  const weeksLine = el('div', 'tl-line');
+  const weeksTrack = el('div', 'tl-track tl-weeks');
+  for (let day = start; day < end; day = addDays(day, 1)) {
+    if (day.getDay() !== 1) continue;
+    const label = el('div', 'tl-week-label');
+    label.style.left = `${percent(day)}%`;
+    label.append(el('strong', null, `${day.getDate()}. ${shortMonth(day)}`), el('small', null, `KW ${isoWeek(day)}`));
+    weeksTrack.append(label);
+  }
+  weeksLine.append(el('div', 'tl-name'), weeksTrack);
+
+  const rows = activeStudents().map((student) => {
+    const row = el('div', 'tl-line tl-row');
+    const name = el('div', 'tl-name');
+    const nameLine = el('div', 'tl-student');
+    const dot = el('span', 'tl-dot');
+    dot.style.background = student.farbe;
+    nameLine.append(dot, fullName(student));
+    const metaText = student.region ? regionName(student) : `${LAENDER[student.land].regionLabel} fehlt`;
+    name.append(nameLine, el('div', 'student-meta tl-student-meta', metaText));
+
+    const track = el('div', 'tl-track');
+    trackBackground(track, start, end, total);
+
+    const list = studentHolidays(student);
+    if (list === null) {
+      track.append(el('div', 'hand tl-missing', `${LAENDER[student.land].regionLabel} eintragen, dann erscheinen hier die Ferien`));
+    } else {
+      list.forEach((holiday) => {
+        const from = parseDay(holiday.start);
+        const to = addDays(parseDay(holiday.end), 1);
+        if (to <= start || from >= end) return;
+        const visibleFrom = from < start ? start : from;
+        const visibleTo = to > end ? end : to;
+        const status = holidayStatus(student, holiday);
+        const bar = el('button', `tl-bar status-${status}`);
+        bar.style.setProperty('--c', student.farbe);
+        bar.style.left = `${percent(visibleFrom)}%`;
+        bar.style.width = `${percent(visibleTo) - percent(visibleFrom)}%`;
+        bar.title = `${holiday.name}: ${longDate(from)} bis ${longDate(addDays(to, -1))}`;
+        bar.setAttribute('aria-label', `${fullName(student)}, ${bar.title}`);
+        if (selected && selected.studentId === student.id && selected.key === holidayKey(holiday)) {
+          bar.classList.add('selected');
+        }
+        bar.addEventListener('click', () => {
+          selected = { studentId: student.id, key: holidayKey(holiday) };
+          renderTimeline();
+          renderDetail();
+        });
+        track.append(bar);
+      });
+    }
+
+    row.append(name, track);
+    return row;
+  });
+
+  timeline.replaceChildren(monthsLine, weeksLine, ...rows);
+}
+
+function selectedInfo() {
+  if (!selected) return null;
+  const student = data.students.find((s) => s.id === selected.studentId);
+  if (!student) return null;
+  const holiday = (studentHolidays(student) || []).find((h) => holidayKey(h) === selected.key);
+  if (!holiday) return null;
+  return { student, holiday };
+}
+
+function renderDetail() {
+  const info = selectedInfo();
+  holidayDetail.hidden = !info;
+  if (!info) return;
+  const { student, holiday } = info;
+  const from = parseDay(holiday.start);
+  const to = parseDay(holiday.end);
+  const lastLesson = lastLessonBefore(student, from);
+
+  detailStudent.textContent = `Ausgewählt · ${fullName(student)}`;
+  detailTitle.replaceChildren(`${holiday.name} `, el('em', null, regionName(student)));
+  detailDates.textContent = `${longDate(from)} bis ${longDate(to)}${lastLesson ? ` · letzte Stunde vorher: ${longDate(lastLesson)}` : ''}`;
+
+  const status = holidayStatus(student, holiday);
+  detailButtons.forEach((btn) => btn.classList.toggle('chosen', btn.dataset.status === status));
+
+  const others = sameRegion(student);
+  detailAllRow.hidden = others.length === 0;
+  detailAllLabel.textContent = `Für alle aus ${regionName(student)} übernehmen (${others.map((s) => s.vorname).join(', ')})`;
+}
+
+function renderCalendar() {
+  const students = activeStudents().filter((s) => studentHolidays(s) !== null);
+  const missing = activeStudents().filter((s) => studentHolidays(s) === null);
+
+  const legendItems = students.map((student) => {
+    const item = el('span');
+    const dot = el('span', 'legend-dot');
+    dot.style.background = student.farbe;
+    item.append(dot, student.vorname);
+    return item;
+  });
+  if (missing.length > 0) {
+    legendItems.push(el('span', 'student-meta', `Ohne Bundesland bzw. Kanton: ${missing.map((s) => s.vorname).join(', ')}`));
+  }
+  calendarLegend.replaceChildren(...legendItems);
+
+  const todayKey = dayKey(new Date());
+  const start = schoolYearStart();
+  const months = [];
+
+  for (let i = 0; i < 12; i++) {
+    const month = addMonths(start, i);
+    const box = el('div');
+    const heading = el('div', 'cal-month-title', `${monthName(month)} `);
+    heading.append(el('small', null, String(month.getFullYear())));
+
+    const weekdays = el('div', 'cal-weekdays');
+    ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].forEach((d) => weekdays.append(el('span', null, d)));
+
+    const days = el('div', 'cal-days');
+    const offset = (month.getDay() + 6) % 7;
+    for (let j = 0; j < offset; j++) days.append(el('div'));
+
+    for (let day = month; day.getMonth() === month.getMonth(); day = addDays(day, 1)) {
+      const key = dayKey(day);
+      const cell = el('div', 'cal-day');
+      if (day.getDay() === 0 || day.getDay() === 6) cell.classList.add('weekend');
+      if (key === todayKey) cell.classList.add('today');
+      cell.append(el('span', 'cal-num', String(day.getDate())));
+
+      const stripes = el('div', 'cal-stripes');
+      students.forEach((student) => {
+        const stripe = el('span', 'cal-stripe');
+        const holiday = studentHolidays(student).find((h) => h.start <= key && key <= h.end);
+        if (holiday) {
+          stripe.classList.add(holidayStatus(student, holiday));
+          stripe.style.setProperty('--c', student.farbe);
+          stripe.title = `${student.vorname}: ${holiday.name}`;
+        }
+        stripes.append(stripe);
+      });
+      cell.append(stripes);
+      days.append(cell);
+    }
+
+    box.append(heading, weekdays, days);
+    months.push(box);
+  }
+
+  yearCalendar.replaceChildren(...months);
+}
+
 navItems.forEach((item) => {
   item.addEventListener('click', () => {
     setActiveNav(item);
     const page = item.dataset.page;
     if (page === 'overview') openOverview();
     else if (page === 'students') openStudents();
+    else if (page === 'holidays') openHolidays();
     else if (page === 'archive') openArchive();
     else if (page === 'settings') openSettings();
     else openPlaceholder(item.lastChild.textContent.trim());
@@ -402,6 +750,7 @@ form.addEventListener('submit', async (event) => {
   if (saved) {
     setActiveNav(studentsNav);
     openStudents();
+    refreshHolidays();
   }
 });
 
@@ -437,6 +786,54 @@ autostartToggle.addEventListener('change', async () => {
   }
 });
 
+viewButtons.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    holidayView = btn.dataset.view;
+    renderHolidays();
+  });
+});
+
+document.getElementById('range-prev').addEventListener('click', () => {
+  rangeStart = addMonths(rangeStart, -RANGE_STEP);
+  renderTimeline();
+});
+
+document.getElementById('range-next').addEventListener('click', () => {
+  rangeStart = addMonths(rangeStart, RANGE_STEP);
+  renderTimeline();
+});
+
+document.getElementById('range-today').addEventListener('click', () => {
+  rangeStart = startOfMonth(new Date());
+  renderTimeline();
+});
+
+detailButtons.forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const info = selectedInfo();
+    if (!info) return;
+    const { student, holiday } = info;
+    const key = holidayKey(holiday);
+    const clicked = btn.dataset.status;
+    const newStatus = holidayStatus(student, holiday) === clicked ? null : clicked;
+    const ids = [student.id, ...(detailAll.checked ? sameRegion(student).map((s) => s.id) : [])];
+
+    const saved = await persist(() => {
+      ids.forEach((id) => {
+        const target = data.students.find((s) => s.id === id);
+        target.ferien = target.ferien || {};
+        if (newStatus) target.ferien[key] = newStatus;
+        else delete target.ferien[key];
+      });
+    });
+
+    if (saved) {
+      renderTimeline();
+      renderDetail();
+    }
+  });
+});
+
 async function init() {
   try {
     data = await window.api.loadData();
@@ -445,6 +842,7 @@ async function init() {
     alert(`Deine Daten konnten nicht geladen werden: ${error.message}`);
   }
   openOverview();
+  refreshHolidays();
 }
 
 init();
