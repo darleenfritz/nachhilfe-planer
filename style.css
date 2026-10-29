@@ -1670,3 +1670,42 @@ h1 em {
 .btn-danger{background:var(--pink);border-color:var(--pink);color:var(--paper)}
 .btn-danger:hover{box-shadow:2px 2px 0 var(--ink)}
 @keyframes dialog-in{from{opacity:0;transform:rotate(-0.6deg) translateY(8px) scale(.98)}to{opacity:1;transform:rotate(-0.6deg)}}
+
+.color-presets{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0 16px}
+.color-preset{display:flex;width:62px;height:34px;padding:0;border:1.5px solid var(--ink);border-radius:999px;overflow:hidden;background:none;cursor:pointer}
+.color-preset span{flex:1}
+.color-preset.active{box-shadow:3px 3px 0 var(--ink);transform:translate(-1px,-1px)}
+.color-row{display:flex;flex-wrap:wrap;align-items:center;gap:18px}
+.color-field{display:flex;align-items:center;gap:10px;cursor:pointer}
+.color-field input[type="color"]{width:46px;height:46px;padding:0;border:1.5px solid var(--ink);border-radius:50%;background:none;cursor:pointer;overflow:hidden}
+.color-field input[type="color"]::-webkit-color-swatch-wrapper{padding:0}
+.color-field input[type="color"]::-webkit-color-swatch{border:none;border-radius:50%}
+.color-field strong{display:block;font-size:14px}
+.color-field small{display:block;font-size:12px;color:var(--muted)}
+.dialog-tape{background:color-mix(in srgb,var(--lime) 90%,transparent)}
+
+html, body {
+  overflow: hidden;
+}
+
+.layout {
+  overflow: hidden;
+}
+
+.sidebar {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.main {
+  min-height: 0;
+}
+
+.switch-row {
+  position: relative;
+}
+
+.switch-row input[type="checkbox"] {
+  top: 0;
+  left: 0;
+}
