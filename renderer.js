@@ -34,6 +34,7 @@ let extraOpen = false;
 let moving = false;
 let invoiceFilter = 'alle';
 let selectedInvoice = null;
+let regRange = '3m';
 
 const navItems = document.querySelectorAll('.nav-item');
 const studentsNav = document.querySelector('[data-page="students"]');
@@ -55,6 +56,11 @@ const pricePreview = document.getElementById('price-preview');
 const termine = document.getElementById('termine');
 const terminTemplate = document.getElementById('termin-template');
 const historySection = document.getElementById('history-section');
+const regularSection = document.getElementById('regular-section');
+const regValue = document.getElementById('reg-value');
+const regDots = document.getElementById('reg-dots');
+const regNote = document.getElementById('reg-note');
+const regButtons = document.querySelectorAll('[data-reg]');
 const lessonHistory = document.getElementById('lesson-history');
 const nachholSection = document.getElementById('nachhol-section');
 const nachholCount = document.getElementById('nachhol-count');
@@ -470,6 +476,69 @@ function nachholEvents(student) {
   return events.sort((a, b) => b.datum.localeCompare(a.datum));
 }
 
+function regStart(student, range) {
+  const today = startOfDay(new Date());
+  const from = range === 'jahr'
+    ? schoolYearStart(today)
+    : new Date(today.getFullYear(), today.getMonth() - 3, today.getDate());
+  const keys = [
+    dayKey(from),
+    data.stundenAb || dayKey(today),
+    student.angelegt ? dayKey(new Date(student.angelegt)) : '0000-00-00',
+  ].sort();
+  return parseDay(keys[2]);
+}
+
+function lessonLog(student, range) {
+  const today = startOfDay(new Date());
+  const log = [];
+
+  for (let day = regStart(student, range); day <= today; day = addDays(day, 1)) {
+    const datum = dayKey(day);
+    const items = [];
+    if (day.getDay() >= 1 && day.getDay() <= 5) {
+      const paused = isPausedOn(student, day);
+      student.termine
+        .filter((t) => t.tag === day.getDay() && !movedTo(student.id, datum, t.zeit))
+        .forEach((t) => items.push({ zeit: t.zeit, dauer: student.dauer, paused }));
+    }
+    sonderTermine()
+      .filter((s) => s.studentId === student.id && s.datum === datum)
+      .forEach((s) => items.push({ zeit: s.zeit, dauer: s.dauer, paused: false }));
+
+    items
+      .sort((a, b) => a.zeit.localeCompare(b.zeit))
+      .forEach((item) => {
+        if (!lessonIsOver(datum, item.zeit, item.dauer)) return;
+        let kind;
+        if (item.paused) {
+          kind = 'ferien';
+        } else {
+          const record = findRecord(student.id, datum, item.zeit);
+          if (record && record.status === 'stattgefunden') kind = 'da';
+          else if (record) kind = record.abgesagtVon === 'ich' ? null : 'weg';
+          else kind = student.art === 'plattform' ? 'da' : 'offen';
+        }
+        if (kind) log.push({ date: day, zeit: item.zeit, kind });
+      });
+  }
+
+  return log;
+}
+
+function regularity(student, range) {
+  const log = lessonLog(student, range);
+  const count = (kind) => log.filter((e) => e.kind === kind).length;
+  const da = count('da');
+  const weg = count('weg');
+  const ferien = count('ferien');
+  return {
+    log,
+    ohne: da + weg > 0 ? Math.round((da / (da + weg)) * 100) : null,
+    mit: da + weg + ferien > 0 ? Math.round((da / (da + weg + ferien)) * 100) : null,
+  };
+}
+
 function nachholStand(student) {
   return (student.nachholStart || 0) + nachholEvents(student).reduce((sum, e) => sum + e.delta, 0);
 }
@@ -833,10 +902,12 @@ function openForm(student = null) {
   editingId = student ? student.id : null;
   archiveBtn.hidden = !student;
   historySection.hidden = !student;
+  regularSection.hidden = !student;
   nachholSection.hidden = !student || student.art !== 'plattform';
   if (student) {
     fillForm(student);
     renderHistory(student);
+    renderRegularity(student);
     if (student.art === 'plattform') renderNachhol(student);
     eyebrow.textContent = 'Schüler bearbeiten';
     title.textContent = `${student.vorname}.`;
@@ -1639,6 +1710,29 @@ function renderInvoices() {
   invoicesEmpty.textContent = list.length === 0 ? 'Noch keine Rechnungen. Sobald du Privatstunden bestätigst, erscheinen sie hier.' : 'Keine Rechnungen mit diesem Status.';
 }
 
+function renderRegularity(student) {
+  const reg = regularity(student, regRange);
+  regButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.reg === regRange));
+
+  if (reg.ohne === null && reg.mit === null) {
+    regValue.replaceChildren(el('span', 'reg-none', 'Noch keine Stunden'), el('small', null, 'Sobald Stunden vorbei sind, siehst du hier, wie regelmäßig sie stattfinden.'));
+  } else {
+    const main = reg.ohne === null ? 'keine Angabe' : `${reg.ohne} %`;
+    const second = reg.mit === null ? '' : ` · mit Ferien ${reg.mit} %`;
+    regValue.replaceChildren(main, el('small', null, `regelmäßig ohne Ferien${second}`));
+  }
+
+  const labels = { da: 'stattgefunden', weg: 'vom Schüler abgesagt', ferien: 'Ferien pausiert', offen: 'noch nicht bestätigt' };
+  regDots.replaceChildren(...reg.log.map((entry) => {
+    const dot = el('span', `reg-dot ${entry.kind}`);
+    dot.title = `${shortDate(entry.date)}, ${entry.zeit} Uhr: ${labels[entry.kind]}`;
+    return dot;
+  }));
+
+  const start = regStart(student, regRange);
+  regNote.textContent = `Gezählt ab ${longDate(start)} ${start.getFullYear()}. Absagen von dir zählen nicht gegen den Schüler.`;
+}
+
 function renderHistory(student) {
   const records = stunden()
     .filter((r) => r.studentId === student.id)
@@ -1843,7 +1937,9 @@ function studentRow(student) {
 
   const timeCell = el('div');
   const times = student.termine.map((t) => `${DAYS[t.tag]} ${t.zeit}`).join(', ');
-  timeCell.append(el('div', 'student-time', times || 'kein Termin'), el('div', 'student-meta', `${student.dauer} Minuten`));
+  const regValueShort = regularity(student, '3m').ohne;
+  const regText = regValueShort === null ? '' : ` · ${regValueShort} % regelmäßig`;
+  timeCell.append(el('div', 'student-time', times || 'kein Termin'), el('div', 'student-meta', `${student.dauer} Minuten${regText}`));
 
   const lastCell = el('div');
   if (student.art === 'plattform') {
@@ -2285,6 +2381,14 @@ weekToday.addEventListener('click', () => {
   selectedLesson = null;
   moving = false;
   renderSchedule();
+});
+
+regButtons.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    regRange = btn.dataset.reg;
+    const student = data.students.find((s) => s.id === editingId);
+    if (student) renderRegularity(student);
+  });
 });
 
 filterButtons.forEach((btn) => {

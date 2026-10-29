@@ -364,13 +364,32 @@
             <button type="button" class="btn" id="add-termin">+ weiterer Termin</button>
           </fieldset>
 
+          <fieldset class="form-section" id="regular-section" hidden>
+            <legend class="section-title"><span class="num">V</span>Regelmäßigkeit</legend>
+            <div class="reg-head">
+              <div class="reg-value" id="reg-value"></div>
+              <div class="view-switch">
+                <button type="button" class="btn btn-small active" data-reg="3m">3 Monate</button>
+                <button type="button" class="btn btn-small" data-reg="jahr">Schuljahr</button>
+              </div>
+            </div>
+            <div class="reg-dots" id="reg-dots"></div>
+            <div class="legend reg-legend">
+              <span><span class="reg-dot da"></span>stattgefunden</span>
+              <span><span class="reg-dot weg"></span>vom Schüler abgesagt</span>
+              <span><span class="reg-dot ferien"></span>Ferien pausiert</span>
+              <span><span class="reg-dot offen"></span>noch nicht bestätigt</span>
+            </div>
+            <p class="hint" id="reg-note"></p>
+          </fieldset>
+
           <fieldset class="form-section" id="history-section" hidden>
-            <legend class="section-title"><span class="num">V</span>Stunden</legend>
+            <legend class="section-title"><span class="num">VI</span>Stunden</legend>
             <div id="lesson-history"></div>
           </fieldset>
 
           <fieldset class="form-section" id="nachhol-section" hidden>
-            <legend class="section-title"><span class="num">VI</span>Nachholstunden</legend>
+            <legend class="section-title"><span class="num">VII</span>Nachholstunden</legend>
             <div class="nachhol-head">
               <div class="nachhol-count" id="nachhol-count"></div>
               <div class="todo-actions">
