@@ -1600,3 +1600,28 @@ h1 em {
 .tile-count{color:var(--pink)}
 .tile-birthday{background:var(--lime)}
 .tile-birthday-text{font-size:22px;transform:rotate(-1.5deg);transform-origin:left}
+
+.exam-form textarea{width:100%;box-sizing:border-box;font-family:var(--sans);font-size:14px;line-height:1.5;padding:10px 12px;border:1px solid var(--ink);border-radius:0;background:var(--paper);color:var(--ink);resize:vertical}
+.exam-files{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px}
+.exam-file{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line);background:var(--paper);padding:2px 4px 2px 8px}
+.exam-file-name{border:none;background:none;padding:2px 0;font-family:var(--sans);font-size:13px;color:var(--ink);cursor:pointer;text-decoration:underline;text-decoration-color:var(--pink);text-underline-offset:3px}
+.exam-next{display:flex;align-items:center;gap:22px;border:1px solid var(--ink);background:var(--card);padding:18px 22px;margin:4px 0 26px;box-shadow:4px 4px 0 var(--pink)}
+.exam-next-days{font-family:var(--serif);font-size:88px;line-height:0.9;color:var(--pink);flex:none;text-align:center}
+.exam-next-days small{display:block;font-family:var(--sans);font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--ink)}
+.exam-next-text{min-width:0}
+.exam-next-note{color:var(--pink);font-size:20px;margin-top:4px}
+.exam-list{border-top:1px solid var(--ink);margin-bottom:22px}
+.exam-row{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:16px;align-items:center;padding:10px 8px;border-bottom:1px solid var(--line);cursor:pointer}
+.exam-row:hover{background:var(--card)}
+.exam-date{text-align:center;line-height:1}
+.exam-date strong{display:block;font-family:var(--serif);font-size:30px;font-weight:400}
+.exam-date small{font-size:11px;color:var(--muted)}
+.exam-row .student-name{display:flex;align-items:center;gap:8px}
+.exam-countdown{color:var(--pink);font-size:20px;white-space:nowrap}
+.exam-grade{display:inline-flex;align-items:center;justify-content:center;min-width:38px;height:38px;padding:0 6px;box-sizing:border-box;border:1.5px solid var(--ink);border-radius:50%;background:var(--lime);font-family:var(--serif);font-size:20px}
+.tile-exam{background:var(--ink);color:var(--paper)}
+.tile-exam .eyebrow{color:var(--lime)}
+.tile-exam .student-meta{color:var(--paper);opacity:0.75}
+.tile-exam-days{font-family:var(--serif);font-size:44px;line-height:1.05;color:var(--pink)}
+.tile-exam-days small{font-family:var(--sans);font-size:12px;margin-left:6px;color:var(--paper)}
+.today-card{align-self:start}

@@ -35,6 +35,11 @@ let moving = false;
 let invoiceFilter = 'alle';
 let selectedInvoice = null;
 let regRange = '3m';
+let examFormOpen = false;
+let editingExamId = null;
+let examFiles = [];
+let examAdded = [];
+let examRemoved = [];
 
 const navItems = document.querySelectorAll('.nav-item');
 const studentsNav = document.querySelector('[data-page="students"]');
@@ -53,6 +58,25 @@ const tileMoneyMeta = document.getElementById('tile-money-meta');
 const tileNachhol = document.getElementById('tile-nachhol');
 const tileNachholList = document.getElementById('tile-nachhol-list');
 const tileBirthday = document.getElementById('tile-birthday');
+const tileExam = document.getElementById('tile-exam');
+const tileExamKicker = document.getElementById('tile-exam-kicker');
+const tileExamDays = document.getElementById('tile-exam-days');
+const tileExamMeta = document.getElementById('tile-exam-meta');
+const examsNav = document.querySelector('[data-page="exams"]');
+const examCount = document.getElementById('exam-count');
+const examNew = document.getElementById('exam-new');
+const examForm = document.getElementById('exam-form');
+const examFormTitle = document.getElementById('exam-form-title');
+const examStudent = document.getElementById('exam-student');
+const examGradeHint = document.getElementById('exam-grade-hint');
+const examFilesBox = document.getElementById('exam-files');
+const examAttach = document.getElementById('exam-attach');
+const examDelete = document.getElementById('exam-delete');
+const examNext = document.getElementById('exam-next');
+const examUpcoming = document.getElementById('exam-upcoming');
+const examPast = document.getElementById('exam-past');
+const examSection = document.getElementById('exam-section');
+const studentExams = document.getElementById('student-exams');
 const tileBirthdayList = document.getElementById('tile-birthday-list');
 const form = document.getElementById('student-form');
 const regionLabel = document.getElementById('region-label');
@@ -375,6 +399,50 @@ function rechnungen() {
 function cancelText(record) {
   if (record.abgesagtVon === 'nichtErschienen') return 'nicht erschienen';
   return `ausgefallen, abgesagt von ${record.abgesagtVon === 'ich' ? 'mir' : 'Schüler'}`;
+}
+
+function schulaufgaben() {
+  return data.schulaufgaben || [];
+}
+
+function examDate(exam) {
+  return parseDay(exam.datum);
+}
+
+function daysUntil(exam) {
+  return dayDiff(startOfDay(new Date()), examDate(exam));
+}
+
+function countdownText(days) {
+  if (days === 0) return 'heute';
+  if (days === 1) return 'morgen';
+  return `in ${days} Tagen`;
+}
+
+function upcomingExams() {
+  const todayKey = dayKey(new Date());
+  return schulaufgaben()
+    .filter((e) => e.datum >= todayKey && activeStudent(e.studentId))
+    .sort((a, b) => a.datum.localeCompare(b.datum));
+}
+
+function pastExams() {
+  const todayKey = dayKey(new Date());
+  return schulaufgaben()
+    .filter((e) => e.datum < todayKey && data.students.some((s) => s.id === e.studentId))
+    .sort((a, b) => b.datum.localeCompare(a.datum));
+}
+
+function gradeHint(student) {
+  if (!student) return '';
+  if (student.land === 'CH') return 'Schweiz: 6 ist die beste Note, 1 die schlechteste.';
+  if (student.land === 'AT') return 'Österreich: 1 ist die beste Note, 5 die schlechteste.';
+  return 'Deutschland: 1 ist die beste Note, 6 die schlechteste. In der Oberstufe kannst du auch Punkte eintragen.';
+}
+
+function examLabel(exam) {
+  const date = examDate(exam);
+  return `${exam.art} am ${date.getDate()}.${date.getMonth() + 1}.`;
 }
 
 function findRecord(studentId, datum, zeit) {
@@ -837,7 +905,7 @@ function showPage(id) {
   pages.forEach((page) => {
     page.hidden = page.id !== `page-${id}`;
   });
-  newStudentBtn.hidden = ['student-form', 'settings', 'holidays', 'schedule', 'invoices'].includes(id);
+  newStudentBtn.hidden = ['student-form', 'settings', 'holidays', 'schedule', 'invoices', 'exams'].includes(id);
 }
 
 function openOverview() {
@@ -870,6 +938,14 @@ function openSchedule() {
   moving = false;
   showPage('schedule');
   renderSchedule();
+}
+
+function openExams() {
+  eyebrow.textContent = 'Mathe';
+  title.innerHTML = 'Schulaufgaben<em>.</em>';
+  setActiveNav(examsNav);
+  showPage('exams');
+  renderExams();
 }
 
 function openInvoices() {
@@ -913,11 +989,13 @@ function openForm(student = null) {
   archiveBtn.hidden = !student;
   historySection.hidden = !student;
   regularSection.hidden = !student;
+  examSection.hidden = !student;
   nachholSection.hidden = !student || student.art !== 'plattform';
   if (student) {
     fillForm(student);
     renderHistory(student);
     renderRegularity(student);
+    renderStudentExams(student);
     if (student.art === 'plattform') renderNachhol(student);
     eyebrow.textContent = 'Schüler bearbeiten';
     title.textContent = `${student.vorname}.`;
@@ -1240,10 +1318,26 @@ function todoTexts() {
   return texts;
 }
 
+function nextExamSummary() {
+  const exam = upcomingExams()[0];
+  if (!exam || daysUntil(exam) > 14) return null;
+  const student = activeStudent(exam.studentId);
+  const date = examDate(exam);
+  return {
+    art: exam.art,
+    name: student.vorname,
+    days: daysUntil(exam),
+    when: countdownText(daysUntil(exam)),
+    date: `${DAYS[date.getDay()]}, ${date.getDate()}. ${shortMonth(date)}`,
+    themen: exam.themen || '',
+  };
+}
+
 function buildSummary() {
   const unpaid = allInvoices().filter((inv) => inv.status !== 'bezahlt');
   const texts = todoTexts();
   return {
+    exam: nextExamSummary(),
     count: texts.length,
     todos: texts,
     lessons: todayLessons(),
@@ -1302,6 +1396,16 @@ function renderToday(summary) {
       row.append(el('span', null, n.name), el('span', 'tile-count', String(n.stand)));
       return row;
     })));
+
+  tileExam.hidden = !summary.exam;
+  if (summary.exam) {
+    tileExamKicker.textContent = `${summary.exam.art} · ${summary.exam.name}`;
+    tileExamDays.replaceChildren(
+      summary.exam.days <= 1 ? summary.exam.when : String(summary.exam.days),
+      summary.exam.days <= 1 ? '' : el('small', null, 'Tage'),
+    );
+    tileExamMeta.textContent = `${summary.exam.date}${summary.exam.themen ? ` · ${summary.exam.themen}` : ''}`;
+  }
 
   tileBirthday.hidden = summary.birthdays.length === 0;
   tileBirthdayList.replaceChildren(...summary.birthdays.map((b) => el('div', 'hand tile-birthday-text', b.text)));
@@ -1434,7 +1538,27 @@ function weekLessons() {
       });
   }
 
+  if (scheduleMode === 'real') {
+    lessons
+      .filter((l) => l.kind === 'normal' || l.kind === 'extra')
+      .forEach((l) => {
+        const exam = examAfterLesson(l);
+        if (exam) l.note = examLabel(exam);
+      });
+  }
+
   return lessons;
+}
+
+function examAfterLesson(lesson) {
+  const exam = schulaufgaben()
+    .filter((e) => e.studentId === lesson.student.id && e.datum > lesson.datum && dayDiff(lesson.date, examDate(e)) <= 14)
+    .sort((a, b) => a.datum.localeCompare(b.datum))[0];
+  if (!exam) return null;
+  for (let day = addDays(lesson.date, 1); dayKey(day) < exam.datum; day = addDays(day, 1)) {
+    if (occurrencesOn(day).some((o) => o.student.id === lesson.student.id)) return null;
+  }
+  return exam;
 }
 
 function weekHolidayInfo() {
@@ -1900,6 +2024,176 @@ function renderRegularity(student) {
 
   const start = regStart(student, regRange);
   regNote.textContent = `Gezählt ab ${longDate(start)} ${start.getFullYear()}. Absagen von dir zählen nicht gegen den Schüler.`;
+}
+
+function examRow(exam, showName) {
+  const student = data.students.find((s) => s.id === exam.studentId);
+  const date = examDate(exam);
+  const row = el('div', 'exam-row');
+  row.tabIndex = 0;
+
+  const dateCell = el('div', 'exam-date');
+  dateCell.append(el('strong', null, String(date.getDate())), el('small', null, `${shortMonth(date)} ${date.getFullYear()}`));
+
+  const info = el('div');
+  const head = el('div', 'student-name');
+  if (showName && student) {
+    const dot = el('span', 'tl-dot');
+    dot.style.background = student.farbe;
+    head.append(dot, `${student.vorname} · `);
+  }
+  head.append(exam.art);
+  const metaParts = [weekdayName(date), exam.themen].filter(Boolean);
+  if (exam.dateien && exam.dateien.length > 0) metaParts.push(`📎 ${exam.dateien.length}`);
+  info.append(head, el('div', 'student-meta', metaParts.join(' · ')));
+
+  const right = el('div', 'exam-right');
+  if (exam.note) {
+    right.append(el('span', 'exam-grade', exam.note));
+  } else if (exam.datum >= dayKey(new Date())) {
+    right.append(el('span', 'hand exam-countdown', countdownText(daysUntil(exam))));
+  } else {
+    right.append(el('span', 'student-meta', 'Note fehlt'));
+  }
+
+  row.append(dateCell, info, right);
+  const open = () => openExamForm(exam);
+  row.addEventListener('click', open);
+  row.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') open();
+  });
+  return row;
+}
+
+function renderExamFiles() {
+  examFilesBox.replaceChildren(...examFiles.map((f) => {
+    const row = el('div', 'exam-file');
+    const name = el('button', 'exam-file-name', `📎 ${f.name}`);
+    name.type = 'button';
+    name.addEventListener('click', async () => {
+      const error = await window.api.openFile(f.file);
+      if (error) alert(`Die Datei konnte nicht geöffnet werden: ${error}`);
+    });
+    const remove = el('button', 'btn-icon', '×');
+    remove.type = 'button';
+    remove.setAttribute('aria-label', `${f.name} entfernen`);
+    remove.addEventListener('click', () => {
+      examFiles = examFiles.filter((x) => x.file !== f.file);
+      if (examAdded.includes(f.file)) {
+        examAdded = examAdded.filter((x) => x !== f.file);
+        window.api.deleteFile(f.file);
+      } else {
+        examRemoved.push(f.file);
+      }
+      renderExamFiles();
+    });
+    row.append(name, remove);
+    return row;
+  }));
+}
+
+function updateExamHint() {
+  examGradeHint.textContent = gradeHint(activeStudent(examStudent.value) || data.students.find((s) => s.id === examStudent.value));
+}
+
+function openExamForm(exam = null, studentId = null) {
+  if (currentPage !== 'exams') openExams();
+  examFormOpen = true;
+  editingExamId = exam ? exam.id : null;
+  examFiles = exam && exam.dateien ? [...exam.dateien] : [];
+  examAdded = [];
+  examRemoved = [];
+
+  const options = activeStudents().map((s) => ({ value: s.id, text: fullName(s) }));
+  if (exam && !activeStudent(exam.studentId)) {
+    const old = data.students.find((s) => s.id === exam.studentId);
+    if (old) options.push({ value: old.id, text: `${fullName(old)} (Archiv)` });
+  }
+  fillSelect(examStudent, options, false);
+
+  const f = examForm.elements;
+  examForm.reset();
+  f.studentId.value = exam ? exam.studentId : (studentId || (options[0] && options[0].value) || '');
+  f.datum.value = exam ? exam.datum : '';
+  f.art.value = exam ? exam.art : 'Schulaufgabe';
+  f.note.value = exam ? exam.note || '' : '';
+  f.themen.value = exam ? exam.themen || '' : '';
+  f.notiz.value = exam ? exam.notiz || '' : '';
+
+  examFormTitle.textContent = exam ? 'Schulaufgabe bearbeiten' : 'Schulaufgabe eintragen';
+  examDelete.hidden = !exam;
+  updateExamHint();
+  renderExamFiles();
+  renderExams();
+  examForm.scrollIntoView({ block: 'nearest' });
+}
+
+function closeExamForm() {
+  examFormOpen = false;
+  editingExamId = null;
+  examFiles = [];
+  examAdded = [];
+  examRemoved = [];
+  renderExams();
+}
+
+function renderExams() {
+  examForm.hidden = !examFormOpen;
+  examNew.classList.toggle('active', examFormOpen && !editingExamId);
+
+  const upcoming = upcomingExams();
+  const past = pastExams();
+  examCount.textContent = upcoming.length === 0
+    ? 'Keine kommenden Schulaufgaben.'
+    : `${upcoming.length} ${upcoming.length === 1 ? 'kommende Schulaufgabe' : 'kommende Schulaufgaben'}`;
+
+  const next = upcoming[0];
+  examNext.hidden = !next;
+  if (next) {
+    const student = activeStudent(next.studentId);
+    const date = examDate(next);
+    const days = daysUntil(next);
+    const big = el('div', 'exam-next-days', days <= 1 ? countdownText(days) : String(days));
+    if (days > 1) big.append(el('small', null, 'Tage'));
+    const text = el('div', 'exam-next-text');
+    const heading = el('div', 'detail-title', `${student.vorname} `);
+    heading.append(el('em', null, next.art));
+    text.append(
+      el('div', 'eyebrow', 'Nächste Schulaufgabe'),
+      heading,
+      el('div', 'student-meta', `${longDate(date)}${next.themen ? ` · ${next.themen}` : ''}`),
+    );
+    if (next.notiz) text.append(el('div', 'hand exam-next-note', next.notiz));
+    if (next.dateien && next.dateien.length > 0) {
+      const files = el('div', 'exam-files');
+      next.dateien.forEach((f) => {
+        const btn = el('button', 'exam-file-name', `📎 ${f.name}`);
+        btn.addEventListener('click', async () => {
+          const error = await window.api.openFile(f.file);
+          if (error) alert(`Die Datei konnte nicht geöffnet werden: ${error}`);
+        });
+        files.append(btn);
+      });
+      text.append(files);
+    }
+    examNext.replaceChildren(big, text);
+  }
+
+  examUpcoming.replaceChildren(...(upcoming.length === 0
+    ? [el('div', 'history-empty', 'Gerade steht keine Schulaufgabe an.')]
+    : upcoming.map((e) => examRow(e, true))));
+  examPast.replaceChildren(...(past.length === 0
+    ? [el('div', 'history-empty', 'Noch keine vergangenen Schulaufgaben.')]
+    : past.map((e) => examRow(e, true))));
+}
+
+function renderStudentExams(student) {
+  const list = schulaufgaben()
+    .filter((e) => e.studentId === student.id)
+    .sort((a, b) => b.datum.localeCompare(a.datum));
+  studentExams.replaceChildren(...(list.length === 0
+    ? [el('div', 'history-empty', 'Noch keine Schulaufgaben eingetragen.')]
+    : list.map((e) => examRow(e, false))));
 }
 
 function renderHistory(student) {
@@ -2381,6 +2675,7 @@ navItems.forEach((item) => {
     else if (page === 'schedule') openSchedule();
     else if (page === 'holidays') openHolidays();
     else if (page === 'invoices') openInvoices();
+    else if (page === 'exams') openExams();
     else if (page === 'archive') openArchive();
     else if (page === 'settings') openSettings();
     else openPlaceholder(item.lastChild.textContent.trim());
@@ -2550,6 +2845,72 @@ weekToday.addEventListener('click', () => {
   selectedLesson = null;
   moving = false;
   renderSchedule();
+});
+
+examNew.addEventListener('click', () => {
+  if (examFormOpen && !editingExamId) closeExamForm();
+  else openExamForm();
+});
+
+examStudent.addEventListener('change', updateExamHint);
+
+examAttach.addEventListener('click', async () => {
+  try {
+    const files = await window.api.pickFiles();
+    examFiles = [...examFiles, ...files];
+    examAdded = [...examAdded, ...files.map((f) => f.file)];
+    renderExamFiles();
+  } catch (error) {
+    alert(`Die Dateien konnten nicht angehängt werden: ${error.message}`);
+  }
+});
+
+document.getElementById('exam-cancel').addEventListener('click', () => {
+  examAdded.forEach((file) => window.api.deleteFile(file));
+  closeExamForm();
+});
+
+examDelete.addEventListener('click', async () => {
+  const exam = schulaufgaben().find((e) => e.id === editingExamId);
+  if (!exam) return;
+  if (!confirm(`${exam.art} am ${longDate(examDate(exam))} wirklich löschen? Angehängte Dateien werden auch gelöscht.`)) return;
+  const saved = await persist(() => {
+    data.schulaufgaben = schulaufgaben().filter((e) => e.id !== exam.id);
+  });
+  if (saved) {
+    [...(exam.dateien || []).map((f) => f.file), ...examAdded].forEach((file) => window.api.deleteFile(file));
+    closeExamForm();
+  }
+});
+
+examForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const f = examForm.elements;
+  if (!f.studentId.value || !f.datum.value) return;
+  const values = {
+    studentId: f.studentId.value,
+    datum: f.datum.value,
+    art: f.art.value,
+    note: f.note.value.trim(),
+    themen: f.themen.value.trim(),
+    notiz: f.notiz.value.trim(),
+    dateien: examFiles,
+  };
+  const saved = await persist(() => {
+    data.schulaufgaben = schulaufgaben();
+    const existing = data.schulaufgaben.find((e) => e.id === editingExamId);
+    if (existing) Object.assign(existing, values);
+    else data.schulaufgaben.push({ id: crypto.randomUUID(), ...values, angelegt: new Date().toISOString() });
+  });
+  if (saved) {
+    examRemoved.forEach((file) => window.api.deleteFile(file));
+    examAdded = [];
+    closeExamForm();
+  }
+});
+
+document.getElementById('student-exam-add').addEventListener('click', () => {
+  if (editingId) openExamForm(null, editingId);
 });
 
 regButtons.forEach((btn) => {

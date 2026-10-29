@@ -148,6 +148,17 @@
       opacity: 0.7;
     }
 
+    .pop-exam {
+      margin-top: 4px;
+      font-family: var(--serif);
+      font-size: 20px;
+    }
+
+    .pop-exam strong {
+      font-weight: 400;
+      color: var(--pink);
+    }
+
     .pop-nachhol {
       display: flex;
       justify-content: space-between;
@@ -247,6 +258,15 @@
           todo.append(el('div', 'pop-todo-more', `und ${rest} ${rest === 1 ? 'weitere Sache' : 'weitere Sachen'}`));
         }
         sections.push(todo);
+      }
+
+      if (summary.exam) {
+        const exam = el('div', 'pop-section');
+        exam.append(el('div', 'eyebrow', `${summary.exam.art} · ${summary.exam.name}`));
+        const line = el('div', 'pop-exam');
+        line.append(el('strong', null, summary.exam.when), ` · ${summary.exam.date}`);
+        exam.append(line);
+        sections.push(exam);
       }
 
       if (summary.nachhol.length > 0) {

@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain, dialog, shell } = require('electron');
 
 const POPOVER_WIDTH = 380;
 const POPOVER_HEIGHT = 560;
@@ -97,6 +97,37 @@ async function loadHolidays(codes) {
     holidays[code] = cache.regions[code] ? cache.regions[code].holidays : null;
   }
   return { holidays, failed };
+}
+
+function attachDir() {
+  return path.join(app.getPath('userData'), 'anhaenge');
+}
+
+function attachPath(file) {
+  return path.join(attachDir(), path.basename(file));
+}
+
+async function pickFiles() {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Dateien anhängen',
+    properties: ['openFile', 'multiSelections'],
+  });
+  if (result.canceled) return [];
+  fs.mkdirSync(attachDir(), { recursive: true });
+  return result.filePaths.map((source) => {
+    const name = path.basename(source);
+    const file = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${name}`;
+    fs.copyFileSync(source, attachPath(file));
+    return { name, file };
+  });
+}
+
+function deleteFile(file) {
+  try {
+    fs.unlinkSync(attachPath(file));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
 }
 
 function getAutostart() {
@@ -230,3 +261,6 @@ ipcMain.handle('set-autostart', (event, enabled) => setAutostart(enabled));
 ipcMain.handle('load-holidays', (event, codes) => loadHolidays(codes));
 ipcMain.on('summary', (event, summary) => updateSummary(summary));
 ipcMain.handle('get-summary', () => lastSummary);
+ipcMain.handle('pick-files', () => pickFiles());
+ipcMain.handle('open-file', (event, file) => shell.openPath(attachPath(file)));
+ipcMain.handle('delete-file', (event, file) => deleteFile(file));

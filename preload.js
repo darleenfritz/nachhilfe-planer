@@ -10,4 +10,7 @@ contextBridge.exposeInMainWorld('api', {
   sendSummary: (summary) => ipcRenderer.send('summary', summary),
   getSummary: () => ipcRenderer.invoke('get-summary'),
   onSummary: (callback) => ipcRenderer.on('summary', (event, summary) => callback(summary)),
+  pickFiles: () => ipcRenderer.invoke('pick-files'),
+  openFile: (file) => ipcRenderer.invoke('open-file', file),
+  deleteFile: (file) => ipcRenderer.invoke('delete-file', file),
 });

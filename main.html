@@ -18,7 +18,7 @@
       <button class="nav-item" data-page="schedule"><span class="num">03</span>Stundenplan</button>
       <button class="nav-item" data-page="holidays"><span class="num">04</span>Ferien</button>
       <button class="nav-item" data-page="invoices"><span class="num">05</span>Rechnungen</button>
-      <button class="nav-item" data-page="placeholder"><span class="num">06</span>Schulaufgaben</button>
+      <button class="nav-item" data-page="exams"><span class="num">06</span>Schulaufgaben</button>
       <button class="nav-item" data-page="placeholder"><span class="num">07</span>Aufgaben</button>
 
       <div class="spacer"></div>
@@ -45,6 +45,11 @@
               <div class="today-free" id="today-free"></div>
             </div>
             <div class="today-tiles">
+              <div class="tile tile-exam" id="tile-exam" hidden>
+                <div class="eyebrow" id="tile-exam-kicker"></div>
+                <div class="tile-exam-days" id="tile-exam-days"></div>
+                <div class="student-meta" id="tile-exam-meta"></div>
+              </div>
               <div class="tile">
                 <div class="eyebrow">Noch nicht bezahlt</div>
                 <div class="tile-value" id="tile-money"></div>
@@ -209,6 +214,73 @@
 
         <div class="invoice-list" id="invoice-list"></div>
         <div class="empty" id="invoices-empty" hidden></div>
+      </section>
+
+      <section class="page" id="page-exams" hidden>
+        <div class="schedule-toolbar">
+          <div class="student-meta" id="exam-count"></div>
+          <div class="toolbar-actions">
+            <button class="btn btn-small" id="exam-new">+ Schulaufgabe</button>
+          </div>
+        </div>
+
+        <form class="holiday-detail exam-form" id="exam-form" hidden>
+          <div class="eyebrow detail-student" id="exam-form-title"></div>
+          <div class="extra-fields">
+            <label class="field">
+              <span class="label">Schüler</span>
+              <select name="studentId" id="exam-student"></select>
+            </label>
+            <label class="field field-medium">
+              <span class="label">Datum</span>
+              <input type="date" name="datum" required>
+            </label>
+            <label class="field field-medium">
+              <span class="label">Art</span>
+              <select name="art">
+                <option>Schulaufgabe</option>
+                <option>Ex</option>
+                <option>Test</option>
+                <option>Klassenarbeit</option>
+              </select>
+            </label>
+            <label class="field field-small">
+              <span class="label">Note <em>danach</em></span>
+              <input type="text" name="note" maxlength="10">
+            </label>
+          </div>
+          <p class="hint" id="exam-grade-hint"></p>
+          <label class="field">
+            <span class="label">Themen</span>
+            <input type="text" name="themen" placeholder="z. B. Bruchrechnen, Dreisatz">
+          </label>
+          <label class="field">
+            <span class="label">Notizen <em>optional</em></span>
+            <textarea name="notiz" rows="3"></textarea>
+          </label>
+          <div class="field">
+            <span class="label">Dateien</span>
+            <div class="exam-files" id="exam-files"></div>
+            <button type="button" class="btn btn-small" id="exam-attach">+ Dateien anhängen</button>
+          </div>
+          <div class="todo-actions">
+            <button type="submit" class="btn btn-small btn-primary">Speichern</button>
+            <button type="button" class="btn btn-small" id="exam-cancel">Abbrechen</button>
+            <button type="button" class="btn btn-small btn-archive" id="exam-delete" hidden>Löschen</button>
+          </div>
+        </form>
+
+        <div class="exam-next" id="exam-next" hidden></div>
+
+        <div class="overview-block">
+          <h2 class="block-title"><span class="num">I</span>Kommende</h2>
+          <div class="exam-list" id="exam-upcoming"></div>
+        </div>
+
+        <div class="overview-block">
+          <h2 class="block-title"><span class="num">II</span>Vergangene</h2>
+          <div class="exam-list" id="exam-past"></div>
+        </div>
       </section>
 
       <section class="page" id="page-holidays" hidden>
@@ -408,13 +480,19 @@
             <p class="hint" id="reg-note"></p>
           </fieldset>
 
+          <fieldset class="form-section" id="exam-section" hidden>
+            <legend class="section-title"><span class="num">VI</span>Schulaufgaben</legend>
+            <div class="exam-list" id="student-exams"></div>
+            <button type="button" class="btn" id="student-exam-add">+ Schulaufgabe</button>
+          </fieldset>
+
           <fieldset class="form-section" id="history-section" hidden>
-            <legend class="section-title"><span class="num">VI</span>Stunden</legend>
+            <legend class="section-title"><span class="num">VII</span>Stunden</legend>
             <div id="lesson-history"></div>
           </fieldset>
 
           <fieldset class="form-section" id="nachhol-section" hidden>
-            <legend class="section-title"><span class="num">VII</span>Nachholstunden</legend>
+            <legend class="section-title"><span class="num">VIII</span>Nachholstunden</legend>
             <div class="nachhol-head">
               <div class="nachhol-count" id="nachhol-count"></div>
               <div class="todo-actions">
