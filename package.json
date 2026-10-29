@@ -5,7 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "package": "electron-packager . Nachhilfe --platform=darwin --out=dist --overwrite"
+    "package": "electron-packager . Nachhilfe --platform=darwin --out=dist --overwrite --icon=icon.icns"
   },
   "author": "Darleen Fritz",
   "license": "ISC",
