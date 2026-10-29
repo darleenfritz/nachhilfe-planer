@@ -37,8 +37,33 @@
       </div>
 
       <section class="page" id="page-overview">
+        <div class="overview-block">
+          <h2 class="block-title"><span class="num">I</span>Heute</h2>
+          <div class="today-grid">
+            <div class="today-card">
+              <div class="today-list" id="today-list"></div>
+              <div class="today-free" id="today-free"></div>
+            </div>
+            <div class="today-tiles">
+              <div class="tile">
+                <div class="eyebrow">Noch nicht bezahlt</div>
+                <div class="tile-value" id="tile-money"></div>
+                <div class="student-meta" id="tile-money-meta"></div>
+              </div>
+              <div class="tile" id="tile-nachhol">
+                <div class="eyebrow">Nachholen</div>
+                <div class="tile-rows" id="tile-nachhol-list"></div>
+              </div>
+              <div class="tile tile-birthday" id="tile-birthday" hidden>
+                <div class="eyebrow">Geburtstag</div>
+                <div class="tile-rows" id="tile-birthday-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="overview-block" id="todo-block" hidden>
-          <h2 class="block-title"><span class="num">I</span>Zu erledigen</h2>
+          <h2 class="block-title"><span class="num">II</span>Zu erledigen</h2>
           <div class="todo-list" id="todo-list"></div>
         </div>
 

@@ -46,6 +46,14 @@ const placeholderText = document.getElementById('placeholder-text');
 const todoBlock = document.getElementById('todo-block');
 const todoList = document.getElementById('todo-list');
 const overviewEmpty = document.getElementById('overview-empty');
+const todayList = document.getElementById('today-list');
+const todayFree = document.getElementById('today-free');
+const tileMoney = document.getElementById('tile-money');
+const tileMoneyMeta = document.getElementById('tile-money-meta');
+const tileNachhol = document.getElementById('tile-nachhol');
+const tileNachholList = document.getElementById('tile-nachhol-list');
+const tileBirthday = document.getElementById('tile-birthday');
+const tileBirthdayList = document.getElementById('tile-birthday-list');
 const form = document.getElementById('student-form');
 const regionLabel = document.getElementById('region-label');
 const regionSelect = document.getElementById('region-select');
@@ -284,6 +292,7 @@ async function persist(change) {
   change();
   try {
     await window.api.saveData(data);
+    publishSummary();
     return true;
   } catch (error) {
     data = before;
@@ -816,6 +825,7 @@ async function refreshHolidays() {
   if (currentPage === 'overview') renderOverview();
   if (currentPage === 'students') renderStudents();
   if (currentPage === 'schedule') renderSchedule();
+  publishSummary();
 }
 
 function setActiveNav(activeItem) {
@@ -1142,7 +1152,166 @@ function lessonCard(occ) {
   return card;
 }
 
+function todayLessons() {
+  const today = startOfDay(new Date());
+  const now = nowMinutes();
+  return occurrencesOn(today)
+    .sort((a, b) => a.start - b.start)
+    .map((o) => {
+      const record = findRecord(o.student.id, o.datum, o.zeit);
+      const end = o.start + o.dauer;
+      let kind = 'upcoming';
+      let status = '';
+      if (record && record.status === 'stattgefunden') {
+        kind = 'done';
+        status = 'stattgefunden';
+      } else if (record) {
+        kind = 'cancelled';
+        status = record.abgesagtVon === 'nichtErschienen' ? 'nicht erschienen' : 'ausgefallen';
+      } else if (now >= end) {
+        kind = o.student.art === 'plattform' ? 'done' : 'pending';
+        status = o.student.art === 'plattform' ? 'vorbei' : 'noch bestätigen';
+      } else if (now >= o.start) {
+        kind = 'now';
+        status = 'läuft gerade';
+      }
+      const art = o.student.art === 'plattform' ? 'Plattform' : 'Privat';
+      return {
+        zeit: formatTime(o.start),
+        ende: formatTime(end),
+        endMinutes: end,
+        name: fullName(o.student),
+        vorname: o.student.vorname,
+        farbe: o.student.farbe,
+        meta: `${art} · ${o.dauer} Min${o.sonder ? ` · ${sonderNote(o.sonder)}` : ''}`,
+        kind,
+        status,
+      };
+    });
+}
+
+function freeText(lessons) {
+  const active = lessons.filter((l) => l.kind !== 'cancelled');
+  if (lessons.length === 0) return 'Heute keine Stunden.';
+  if (active.length === 0) return 'Heute fällt alles aus.';
+  const lastEnd = Math.max(...active.map((l) => l.endMinutes));
+  if (nowMinutes() >= lastEnd) return 'Für heute geschafft!';
+  return `Frei ab ${formatTime(lastEnd)}.`;
+}
+
+function pausedToday() {
+  const today = startOfDay(new Date());
+  if (today.getDay() === 0 || today.getDay() === 6) return [];
+  return activeStudents()
+    .filter((s) => s.termine.some((t) => t.tag === today.getDay()) && isPausedOn(s, today))
+    .map((s) => s.vorname);
+}
+
+function upcomingBirthdays() {
+  const today = startOfDay(new Date());
+  return activeStudents()
+    .filter((s) => s.geburtstag)
+    .map((s) => {
+      const born = parseDay(s.geburtstag);
+      let next = new Date(today.getFullYear(), born.getMonth(), born.getDate());
+      if (next < today) next = new Date(today.getFullYear() + 1, born.getMonth(), born.getDate());
+      const days = dayDiff(today, next);
+      const age = next.getFullYear() - born.getFullYear();
+      let when = `in ${days} Tagen`;
+      if (days === 0) when = 'heute';
+      if (days === 1) when = 'morgen';
+      return { name: s.vorname, age, days, text: `${s.vorname} wird ${when} ${age}!` };
+    })
+    .filter((b) => b.days <= 7)
+    .sort((a, b) => a.days - b.days);
+}
+
+function todoTexts() {
+  const texts = [];
+  const classStudents = classTodos();
+  if (classStudents.length > 0) texts.push(`Klassen prüfen: ${classStudents.map((s) => s.vorname).join(', ')}`);
+  pendingLessons().forEach((o) => texts.push(`Stunde ${o.student.vorname}, ${DAYS[o.date.getDay()]} ${formatTime(o.start)} bestätigen`));
+  allInvoices()
+    .filter((inv) => inv.status === 'offen' && inv.ready && inv.unconfirmed === 0)
+    .forEach((inv) => texts.push(`Rechnung ${inv.student.vorname}, ${monthName(monthDate(inv.monat))} verschicken`));
+  holidayTodos().forEach((group) => {
+    group.entries.forEach(({ student }) => texts.push(`${group.holiday.name}: macht ${student.vorname} weiter?`));
+  });
+  return texts;
+}
+
+function buildSummary() {
+  const unpaid = allInvoices().filter((inv) => inv.status !== 'bezahlt');
+  const texts = todoTexts();
+  return {
+    count: texts.length,
+    todos: texts,
+    lessons: todayLessons(),
+    free: freeText(todayLessons()),
+    paused: pausedToday(),
+    unpaidCents: unpaid.reduce((sum, inv) => sum + inv.cents, 0),
+    unsentCents: unpaid.filter((inv) => inv.status === 'offen').reduce((sum, inv) => sum + inv.cents, 0),
+    unpaidNames: [...new Set(unpaid.map((inv) => inv.student.vorname))],
+    nachhol: activeStudents()
+      .filter((s) => s.art === 'plattform')
+      .map((s) => ({ name: s.vorname, stand: nachholStand(s) }))
+      .filter((n) => n.stand > 0),
+    birthdays: upcomingBirthdays(),
+  };
+}
+
+function publishSummary() {
+  try {
+    window.api.sendSummary(buildSummary());
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function renderToday(summary) {
+  if (summary.lessons.length === 0) {
+    todayList.replaceChildren(el('div', 'today-empty', 'Keine Stunden heute.'));
+  } else {
+    todayList.replaceChildren(...summary.lessons.map((lesson) => {
+      const row = el('div', `today-row ${lesson.kind}`);
+      row.style.setProperty('--c', lesson.farbe);
+      const info = el('div');
+      const name = el('div', 'today-name', lesson.name);
+      if (lesson.kind === 'done') name.append(el('span', 'wg-check', '✓'));
+      info.append(name, el('div', 'student-meta', lesson.meta));
+      row.append(el('div', 'today-time', lesson.zeit), info);
+      if (lesson.status && lesson.kind !== 'done') row.append(el('div', 'hand today-status', lesson.status));
+      return row;
+    }));
+  }
+
+  const freeNodes = [summary.free];
+  if (summary.paused.length > 0) freeNodes.push(el('span', 'hand today-paused', `${summary.paused.join(', ')} pausiert`));
+  todayFree.replaceChildren(...freeNodes);
+
+  tileMoney.textContent = formatEuro(summary.unpaidCents / 100);
+  tileMoneyMeta.textContent = summary.unpaidCents === 0
+    ? 'Alles bezahlt.'
+    : `${summary.unpaidNames.join(', ')}${summary.unsentCents > 0 ? ` · davon ${formatEuro(summary.unsentCents / 100)} noch nicht verschickt` : ''}`;
+
+  tileNachhol.hidden = !activeStudents().some((s) => s.art === 'plattform');
+  tileNachholList.replaceChildren(...(summary.nachhol.length === 0
+    ? [el('div', 'student-meta', 'Nichts nachzuholen.')]
+    : summary.nachhol.map((n) => {
+      const row = el('div', 'tile-row');
+      row.append(el('span', null, n.name), el('span', 'tile-count', String(n.stand)));
+      return row;
+    })));
+
+  tileBirthday.hidden = summary.birthdays.length === 0;
+  tileBirthdayList.replaceChildren(...summary.birthdays.map((b) => el('div', 'hand tile-birthday-text', b.text)));
+}
+
 function renderOverview() {
+  const summary = buildSummary();
+  renderToday(summary);
+  window.api.sendSummary(summary);
+
   const cards = [
     ...pendingLessons().map(lessonCard),
     ...allInvoices().filter((inv) => inv.status === 'offen' && inv.ready && inv.unconfirmed === 0).map(invoiceCard),
@@ -1725,7 +1894,7 @@ function renderRegularity(student) {
   const labels = { da: 'stattgefunden', weg: 'vom Schüler abgesagt', ferien: 'Ferien pausiert', offen: 'noch nicht bestätigt' };
   regDots.replaceChildren(...reg.log.map((entry) => {
     const dot = el('span', `reg-dot ${entry.kind}`);
-    dot.title = `${shortDate(entry.date)}, ${entry.zeit} Uhr: ${labels[entry.kind]}`;
+    dot.dataset.tip = `${shortDate(entry.date)}, ${entry.zeit} Uhr: ${labels[entry.kind]}`;
     return dot;
   }));
 
@@ -2439,9 +2608,8 @@ detailButtons.forEach((btn) => {
 });
 
 setInterval(() => {
-  if (currentPage !== 'overview') return;
-  if (todoList.contains(document.activeElement)) return;
-  renderOverview();
+  if (currentPage === 'overview' && !todoList.contains(document.activeElement)) openOverview();
+  else publishSummary();
 }, 60000);
 
 async function init() {

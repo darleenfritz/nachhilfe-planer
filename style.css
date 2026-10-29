@@ -1578,3 +1578,25 @@ h1 em {
 
 .reg-dot{position:relative;cursor:default}
 .reg-dot[data-tip]:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:-4px;white-space:nowrap;background:var(--ink);color:var(--paper);font-family:var(--sans);font-size:12px;line-height:1.3;padding:5px 9px;border-radius:6px;box-shadow:2px 2px 0 var(--pink);z-index:10;pointer-events:none}
+
+.today-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px;margin-bottom:28px}
+.today-card{border:1px solid var(--ink);background:var(--card);padding:16px 18px;box-shadow:3px 3px 0 var(--ink)}
+.today-row{display:flex;align-items:baseline;gap:14px;padding:8px 0;border-bottom:1px solid var(--line)}
+.today-row:last-child{border-bottom:none}
+.today-time{width:64px;flex:none;font-family:var(--serif);font-size:28px;line-height:1}
+.today-name{font-family:var(--serif);font-size:22px;line-height:1.1;display:flex;align-items:center;gap:6px}
+.today-name::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--c);border:1px solid var(--ink);flex:none}
+.today-row.cancelled .today-name{text-decoration:line-through;color:var(--muted)}
+.today-row.now{background:linear-gradient(90deg,var(--lime) 0 4px,transparent 4px);padding-left:10px}
+.today-status{margin-left:auto;color:var(--pink);font-size:19px;white-space:nowrap}
+.today-empty{font-family:var(--serif);font-style:italic;font-size:22px;color:var(--muted);padding:6px 0}
+.today-free{margin-top:12px;font-family:var(--serif);font-style:italic;font-size:24px}
+.today-paused{margin-left:10px;font-style:normal;font-size:20px;color:var(--pink)}
+.today-tiles{display:flex;flex-direction:column;gap:12px}
+.tile{border:1px solid var(--ink);background:var(--card);padding:12px 16px}
+.tile-value{font-family:var(--serif);font-size:40px;line-height:1.05;margin-top:2px}
+.tile-rows{margin-top:6px}
+.tile-row{display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;font-family:var(--serif);font-size:20px}
+.tile-count{color:var(--pink)}
+.tile-birthday{background:var(--lime)}
+.tile-birthday-text{font-size:22px;transform:rotate(-1.5deg);transform-origin:left}

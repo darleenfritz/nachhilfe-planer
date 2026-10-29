@@ -7,4 +7,7 @@ contextBridge.exposeInMainWorld('api', {
   getAutostart: () => ipcRenderer.invoke('get-autostart'),
   setAutostart: (enabled) => ipcRenderer.invoke('set-autostart', enabled),
   loadHolidays: (codes) => ipcRenderer.invoke('load-holidays', codes),
+  sendSummary: (summary) => ipcRenderer.send('summary', summary),
+  getSummary: () => ipcRenderer.invoke('get-summary'),
+  onSummary: (callback) => ipcRenderer.on('summary', (event, summary) => callback(summary)),
 });

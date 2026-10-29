@@ -8,7 +8,8 @@
     body {
       display: flex;
       flex-direction: column;
-      min-height: 100vh;
+      height: 100vh;
+      box-sizing: border-box;
       padding: 20px;
       border: 1px solid var(--ink);
       border-radius: 14px;
@@ -16,6 +17,10 @@
     }
 
     .pop-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 10px;
       padding-bottom: 12px;
       border-bottom: 1px solid var(--ink);
     }
@@ -31,50 +36,242 @@
       color: var(--pink);
     }
 
+    .pop-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      flex: none;
+      border: 1.5px solid var(--ink);
+      border-radius: 50%;
+      background: var(--lime);
+      transform: rotate(10deg);
+      line-height: 1;
+    }
+
+    .pop-badge strong {
+      font-family: var(--serif);
+      font-size: 21px;
+      font-weight: 400;
+    }
+
+    .pop-badge small {
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .pop-scroll {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
     .pop-section {
-      padding: 14px 0;
+      padding: 12px 0;
       border-bottom: 1px solid var(--line);
     }
 
-    .pop-empty {
-      margin-top: 6px;
-      font-family: var(--serif);
-      font-style: italic;
-      font-size: 20px;
+    .pop-section:last-child {
+      border-bottom: none;
+    }
+
+    .pop-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      padding: 4px 0;
+    }
+
+    .pop-row.cancelled .pop-name {
+      text-decoration: line-through;
       color: var(--muted);
     }
 
-    .pop-note {
+    .pop-time {
+      width: 58px;
+      flex: none;
+      font-family: var(--serif);
+      font-size: 24px;
+    }
+
+    .pop-name {
+      font-family: var(--serif);
+      font-size: 20px;
+      line-height: 1.1;
+    }
+
+    .pop-status {
+      margin-left: auto;
+      color: var(--pink);
+      font-size: 17px;
+      white-space: nowrap;
+    }
+
+    .pop-free {
+      margin-top: 6px;
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 19px;
+    }
+
+    .pop-free .hand {
+      margin-left: 8px;
+      font-style: normal;
+      color: var(--pink);
+    }
+
+    .pop-todo {
       margin-top: 12px;
-      font-size: 21px;
+      padding: 14px 16px;
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .pop-todo .eyebrow {
+      color: var(--lime);
+    }
+
+    .pop-todo-item {
+      margin-top: 6px;
+      font-family: var(--serif);
+      font-size: 19px;
+      line-height: 1.15;
+    }
+
+    .pop-todo-more {
+      margin-top: 6px;
+      font-size: 12px;
+      opacity: 0.7;
+    }
+
+    .pop-nachhol {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+      font-family: var(--serif);
+      font-size: 19px;
+    }
+
+    .pop-nachhol strong {
+      font-weight: 400;
+      color: var(--pink);
+    }
+
+    .pop-birthday {
+      display: block;
+      margin-top: 4px;
+      color: var(--pink);
+      font-size: 22px;
       transform: rotate(-2deg);
     }
 
     .pop-open {
       width: 100%;
-      margin-top: auto;
+      margin-top: 12px;
     }
   </style>
 </head>
 <body>
   <div class="pop-header">
-    <div class="eyebrow" id="weekday"></div>
-    <div class="pop-date" id="date"></div>
+    <div>
+      <div class="eyebrow" id="weekday"></div>
+      <div class="pop-date" id="date"></div>
+    </div>
+    <div class="pop-badge" id="badge" hidden>
+      <strong id="badge-count"></strong>
+      <small>offen</small>
+    </div>
   </div>
 
-  <div class="pop-section">
-    <div class="eyebrow">Heute</div>
-    <div class="pop-empty">Noch keine Stunden eingetragen.</div>
-  </div>
-
-  <div class="hand pop-note">Bald stehen hier deine Stunden!</div>
+  <div class="pop-scroll" id="content"></div>
 
   <button class="btn btn-primary pop-open" onclick="window.api.openMainWindow()">App öffnen →</button>
 
   <script>
-    const now = new Date();
-    document.getElementById('weekday').textContent = now.toLocaleDateString('de-DE', { weekday: 'long' });
-    document.getElementById('date').innerHTML = `<em>${now.getDate()}.</em> ${now.toLocaleDateString('de-DE', { month: 'long' })}`;
+    const MAX_TODOS = 3;
+
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function renderDate() {
+      const now = new Date();
+      document.getElementById('weekday').textContent = now.toLocaleDateString('de-DE', { weekday: 'long' });
+      const date = document.getElementById('date');
+      date.replaceChildren(el('em', null, `${now.getDate()}.`), ` ${now.toLocaleDateString('de-DE', { month: 'long' })}`);
+    }
+
+    function render(summary) {
+      renderDate();
+      const content = document.getElementById('content');
+
+      if (!summary) {
+        content.replaceChildren(el('div', 'pop-free', 'Lädt …'));
+        return;
+      }
+
+      const badge = document.getElementById('badge');
+      badge.hidden = summary.count === 0;
+      document.getElementById('badge-count').textContent = String(summary.count);
+
+      const sections = [];
+
+      const today = el('div', 'pop-section');
+      today.append(el('div', 'eyebrow', 'Heute'));
+      summary.lessons.forEach((lesson) => {
+        const row = el('div', `pop-row ${lesson.kind}`);
+        const info = el('div');
+        info.append(el('div', 'pop-name', `${lesson.name}${lesson.kind === 'done' ? ' ✓' : ''}`), el('div', 'student-meta', lesson.meta));
+        row.append(el('span', 'pop-time', lesson.zeit), info);
+        if (lesson.status && lesson.kind !== 'done') row.append(el('span', 'hand pop-status', lesson.status));
+        today.append(row);
+      });
+      const free = el('div', 'pop-free', summary.free);
+      if (summary.paused.length > 0) free.append(el('span', 'hand', `${summary.paused.join(', ')} pausiert`));
+      today.append(free);
+      sections.push(today);
+
+      if (summary.count > 0) {
+        const todo = el('div', 'pop-todo');
+        todo.append(el('div', 'eyebrow', 'Zu erledigen'));
+        summary.todos.slice(0, MAX_TODOS).forEach((text) => todo.append(el('div', 'pop-todo-item', text)));
+        if (summary.count > MAX_TODOS) {
+          const rest = summary.count - MAX_TODOS;
+          todo.append(el('div', 'pop-todo-more', `und ${rest} ${rest === 1 ? 'weitere Sache' : 'weitere Sachen'}`));
+        }
+        sections.push(todo);
+      }
+
+      if (summary.nachhol.length > 0) {
+        const nachhol = el('div', 'pop-section');
+        nachhol.append(el('div', 'eyebrow', 'Nachholen'));
+        summary.nachhol.forEach((n) => {
+          const row = el('div', 'pop-nachhol');
+          row.append(el('span', null, n.name), el('strong', null, String(n.stand)));
+          nachhol.append(row);
+        });
+        sections.push(nachhol);
+      }
+
+      if (summary.birthdays.length > 0) {
+        const birthdays = el('div', 'pop-section');
+        summary.birthdays.forEach((b) => birthdays.append(el('span', 'hand pop-birthday', b.text)));
+        sections.push(birthdays);
+      }
+
+      content.replaceChildren(...sections);
+    }
+
+    window.api.onSummary(render);
+    window.api.getSummary().then(render);
+    setInterval(renderDate, 60000);
   </script>
 </body>
 </html>

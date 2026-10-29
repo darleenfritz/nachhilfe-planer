@@ -10,6 +10,8 @@ const ONE_DAY = 24 * 60 * 60 * 1000;
 let mainWindow = null;
 let popover = null;
 let tray = null;
+let quitting = false;
+let lastSummary = null;
 
 const EMPTY_DATA = { students: [], settings: { hourlyRate: 24 } };
 
@@ -106,14 +108,9 @@ function setAutostart(enabled) {
   return getAutostart();
 }
 
-function openMainWindow() {
-  if (mainWindow) {
-    mainWindow.show();
-    mainWindow.focus();
-    return;
-  }
-
+function createMainWindow() {
   mainWindow = new BrowserWindow({
+    show: false,
     width: 1100,
     height: 720,
     minWidth: 820,
@@ -123,17 +120,36 @@ function openMainWindow() {
     visualEffectState: 'active',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      backgroundThrottling: false,
     },
   });
 
   mainWindow.loadFile('main.html');
 
-  if (process.platform === 'darwin') app.dock.show();
+  mainWindow.on('close', (event) => {
+    if (quitting) return;
+    event.preventDefault();
+    mainWindow.hide();
+    if (process.platform === 'darwin') app.dock.hide();
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
-    if (process.platform === 'darwin') app.dock.hide();
   });
+}
+
+function openMainWindow() {
+  if (!mainWindow) createMainWindow();
+  if (process.platform === 'darwin') app.dock.show();
+  mainWindow.show();
+  mainWindow.focus();
+  if (popover && popover.isVisible()) popover.hide();
+}
+
+function updateSummary(summary) {
+  lastSummary = summary;
+  if (tray) tray.setTitle(summary.count > 0 ? `📚 ${summary.count}` : '📚');
+  if (popover) popover.webContents.send('summary', summary);
 }
 
 function createPopover() {
@@ -190,12 +206,18 @@ app.whenReady().then(() => {
     ]));
   });
 
+  createMainWindow();
+
   const openedAtLogin = app.getLoginItemSettings().wasOpenedAtLogin;
   if (openedAtLogin) {
     if (process.platform === 'darwin') app.dock.hide();
   } else {
-    openMainWindow();
+    mainWindow.once('ready-to-show', openMainWindow);
   }
+});
+
+app.on('before-quit', () => {
+  quitting = true;
 });
 
 app.on('activate', openMainWindow);
@@ -206,3 +228,5 @@ ipcMain.handle('save-data', (event, data) => saveData(data));
 ipcMain.handle('get-autostart', () => getAutostart());
 ipcMain.handle('set-autostart', (event, enabled) => setAutostart(enabled));
 ipcMain.handle('load-holidays', (event, codes) => loadHolidays(codes));
+ipcMain.on('summary', (event, summary) => updateSummary(summary));
+ipcMain.handle('get-summary', () => lastSummary);
