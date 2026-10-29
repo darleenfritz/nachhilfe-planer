@@ -85,6 +85,17 @@
           <div class="schedule-main">
             <div class="week-grid" id="week-grid"></div>
             <div class="legend schedule-legend" id="schedule-legend"></div>
+
+            <div class="holiday-detail" id="lesson-detail" hidden>
+              <div class="detail-text">
+                <div class="eyebrow detail-student" id="lesson-detail-kicker"></div>
+                <div class="detail-title" id="lesson-detail-title"></div>
+                <div class="student-meta" id="lesson-detail-meta"></div>
+              </div>
+              <div class="detail-actions">
+                <div class="detail-buttons" id="lesson-detail-buttons"></div>
+              </div>
+            </div>
           </div>
 
           <aside class="free-box">
@@ -273,6 +284,11 @@
             <legend class="section-title"><span class="num">IV</span>Termine</legend>
             <div id="termine"></div>
             <button type="button" class="btn" id="add-termin">+ weiterer Termin</button>
+          </fieldset>
+
+          <fieldset class="form-section" id="history-section" hidden>
+            <legend class="section-title"><span class="num">V</span>Stunden</legend>
+            <div id="lesson-history"></div>
           </fieldset>
 
           <div class="form-actions">

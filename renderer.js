@@ -1,9 +1,11 @@
 const DAYS = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr'];
 const WEEKDAYS_LONG = ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'];
 const COLORS = ['#FF2E88', '#C6F432', '#3D8BF2', '#F5A623', '#9B6BFF', '#22B573', '#00B8D9', '#F2668F'];
+const DURATIONS = [30, 45, 50, 60];
 const RANGE_MONTHS = 3;
 const RANGE_STEP = 1;
 const PAUSE_PREVIEW_DAYS = 14;
+const LOOKBACK_DAYS = 60;
 const DAY_START = 13 * 60;
 const DAY_END = 20 * 60;
 const SLOT = 15;
@@ -25,6 +27,7 @@ let scheduleMode = 'normal';
 let weekStart = currentWeekStart();
 let editingBlocks = false;
 let drag = null;
+let selectedLesson = null;
 
 const navItems = document.querySelectorAll('.nav-item');
 const studentsNav = document.querySelector('[data-page="students"]');
@@ -45,6 +48,8 @@ const plattformFields = document.getElementById('plattform-fields');
 const pricePreview = document.getElementById('price-preview');
 const termine = document.getElementById('termine');
 const terminTemplate = document.getElementById('termin-template');
+const historySection = document.getElementById('history-section');
+const lessonHistory = document.getElementById('lesson-history');
 const studentList = document.getElementById('student-list');
 const studentsEmpty = document.getElementById('students-empty');
 const archiveList = document.getElementById('archive-list');
@@ -64,6 +69,11 @@ const weekTitle = document.getElementById('week-title');
 const weekInfo = document.getElementById('week-info');
 const weekGrid = document.getElementById('week-grid');
 const scheduleLegend = document.getElementById('schedule-legend');
+const lessonDetail = document.getElementById('lesson-detail');
+const lessonDetailKicker = document.getElementById('lesson-detail-kicker');
+const lessonDetailTitle = document.getElementById('lesson-detail-title');
+const lessonDetailMeta = document.getElementById('lesson-detail-meta');
+const lessonDetailButtons = document.getElementById('lesson-detail-buttons');
 const freeTitle = document.getElementById('free-title');
 const freeList = document.getElementById('free-list');
 const freeCopy = document.getElementById('free-copy');
@@ -77,7 +87,7 @@ const holidayDetail = document.getElementById('holiday-detail');
 const detailStudent = document.getElementById('detail-student');
 const detailTitle = document.getElementById('detail-title');
 const detailDates = document.getElementById('detail-dates');
-const detailButtons = document.querySelectorAll('.detail-buttons .btn');
+const detailButtons = document.querySelectorAll('.detail-buttons [data-status]');
 const detailAllRow = document.getElementById('detail-all-row');
 const detailAll = document.getElementById('detail-all');
 const detailAllLabel = document.getElementById('detail-all-label');
@@ -124,6 +134,11 @@ function dayKey(date) {
 function toMinutes(time) {
   const [hours, minutes] = time.split(':').map(Number);
   return hours * 60 + minutes;
+}
+
+function nowMinutes() {
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes();
 }
 
 function formatTime(minutes) {
@@ -248,6 +263,11 @@ function holidayOn(student, date) {
   return (studentHolidays(student) || []).find((h) => h.start <= key && key <= h.end) || null;
 }
 
+function isPausedOn(student, date) {
+  const holiday = holidayOn(student, date);
+  return Boolean(holiday) && holidayStatus(student, holiday) === 'pausiert';
+}
+
 function sameRegion(student) {
   const code = studentCode(student);
   return activeStudents().filter((s) => s.id !== student.id && studentCode(s) === code);
@@ -273,6 +293,83 @@ function firstLessonAfter(student, endDate) {
     if (weekdays.includes(day.getDay())) return day;
   }
   return null;
+}
+
+function stunden() {
+  return data.stunden || [];
+}
+
+function findRecord(studentId, datum, zeit) {
+  return stunden().find((r) => r.studentId === studentId && r.datum === datum && r.zeit === zeit) || null;
+}
+
+function occurrencesOn(date) {
+  const weekday = date.getDay();
+  if (weekday === 0 || weekday === 6) return [];
+  const datum = dayKey(date);
+  const result = [];
+  activeStudents().forEach((student) => {
+    if (isPausedOn(student, date)) return;
+    student.termine
+      .filter((t) => t.tag === weekday)
+      .forEach((t) => result.push({ student, date, datum, zeit: t.zeit, start: toMinutes(t.zeit), dauer: student.dauer }));
+  });
+  return result;
+}
+
+function isLastInMonth(student, date) {
+  for (let day = addDays(date, 1); day.getMonth() === date.getMonth(); day = addDays(day, 1)) {
+    if (lessonDays(student).includes(day.getDay()) && !isPausedOn(student, day)) return false;
+  }
+  return true;
+}
+
+function pendingLessons() {
+  const today = startOfDay(new Date());
+  const todayKey = dayKey(today);
+  const firstDay = data.stundenAb ? parseDay(data.stundenAb) : today;
+  const lookback = addDays(today, -LOOKBACK_DAYS);
+  const start = firstDay > lookback ? firstDay : lookback;
+  const result = [];
+
+  for (let day = start; day <= today; day = addDays(day, 1)) {
+    occurrencesOn(day)
+      .filter((o) => o.student.art === 'privat')
+      .forEach((o) => {
+        if (findRecord(o.student.id, o.datum, o.zeit)) return;
+        if (o.datum === todayKey && nowMinutes() < o.start + o.dauer) return;
+        result.push(o);
+      });
+  }
+
+  return result.sort((a, b) => a.datum.localeCompare(b.datum) || a.start - b.start);
+}
+
+function saveLesson(occ, values) {
+  const art = occ.student.art;
+  return persist(() => {
+    data.stunden = stunden().filter((r) => !(r.studentId === occ.student.id && r.datum === occ.datum && r.zeit === occ.zeit));
+    data.stunden.push({
+      id: crypto.randomUUID(),
+      studentId: occ.student.id,
+      datum: occ.datum,
+      zeit: occ.zeit,
+      art,
+      status: values.status,
+      dauer: values.dauer,
+      preis: values.status === 'stattgefunden' && art === 'privat' ? priceFor(values.dauer) : 0,
+      thema: values.thema || '',
+      letzteImMonat: Boolean(values.letzteImMonat),
+      abgesagtVon: values.abgesagtVon || null,
+      erfasst: new Date().toISOString(),
+    });
+  });
+}
+
+function resetLesson(occ) {
+  return persist(() => {
+    data.stunden = stunden().filter((r) => !(r.studentId === occ.student.id && r.datum === occ.datum && r.zeit === occ.zeit));
+  });
 }
 
 function pauseNote(student) {
@@ -356,6 +453,7 @@ function openSchedule() {
   eyebrow.textContent = `${formatTime(DAY_START)} bis ${formatTime(DAY_END)} Uhr`;
   title.innerHTML = 'Stundenplan<em>.</em>';
   editingBlocks = false;
+  selectedLesson = null;
   showPage('schedule');
   renderSchedule();
 }
@@ -392,8 +490,10 @@ function openForm(student = null) {
   resetForm();
   editingId = student ? student.id : null;
   archiveBtn.hidden = !student;
+  historySection.hidden = !student;
   if (student) {
     fillForm(student);
+    renderHistory(student);
     eyebrow.textContent = 'Schüler bearbeiten';
     title.textContent = `${student.vorname}.`;
   } else {
@@ -554,8 +654,81 @@ function classCard(students) {
   return card;
 }
 
+function lessonCard(occ) {
+  const card = el('article', 'todo-card');
+  const kicker = el('div', 'eyebrow todo-kicker', 'Stunde · Hat sie stattgefunden?');
+  const heading = el('div', 'todo-title', `${fullName(occ.student)} `);
+  heading.append(el('em', null, `${weekdayName(occ.date)}, ${occ.date.getDate()}. ${monthName(occ.date)}`));
+  const meta = el('div', 'student-meta', `${formatTime(occ.start)} Uhr · ${occ.dauer} Minuten · ${formatEuro(priceFor(occ.dauer))}`);
+
+  const fields = el('div', 'lesson-fields');
+  const topic = el('input', 'lesson-topic');
+  topic.type = 'text';
+  topic.placeholder = 'Thema (optional)';
+  const checkLabel = el('label', 'check-label');
+  const check = el('input');
+  check.type = 'checkbox';
+  check.checked = isLastInMonth(occ.student, occ.date);
+  checkLabel.append(check, 'Letzte Stunde im Monat');
+  fields.append(topic, checkLabel);
+
+  const extra = el('div', 'lesson-extra');
+  extra.hidden = true;
+  let extraMode = null;
+
+  const values = () => ({ thema: topic.value.trim(), letzteImMonat: check.checked });
+
+  async function save(extraValues) {
+    if (await saveLesson(occ, { ...values(), ...extraValues })) renderOverview();
+  }
+
+  function showExtra(mode) {
+    if (extraMode === mode) {
+      extra.hidden = true;
+      extraMode = null;
+      return;
+    }
+    extraMode = mode;
+    extra.hidden = false;
+    if (mode === 'anders') {
+      const label = el('span', 'lesson-extra-label', 'Tatsächliche Länge:');
+      const buttons = DURATIONS.map((minutes) => {
+        const btn = el('button', 'btn btn-small', `${minutes} Min · ${formatEuro(priceFor(minutes))}`);
+        if (minutes === occ.dauer) btn.classList.add('chosen');
+        btn.addEventListener('click', () => save({ status: 'stattgefunden', dauer: minutes }));
+        return btn;
+      });
+      extra.replaceChildren(label, ...buttons);
+    } else {
+      const label = el('span', 'lesson-extra-label', 'Wer hat abgesagt?');
+      const pupil = el('button', 'btn btn-small', 'Schüler');
+      pupil.addEventListener('click', () => save({ status: 'ausgefallen', dauer: occ.dauer, abgesagtVon: 'schueler' }));
+      const me = el('button', 'btn btn-small', 'Ich');
+      me.addEventListener('click', () => save({ status: 'ausgefallen', dauer: occ.dauer, abgesagtVon: 'ich' }));
+      extra.replaceChildren(label, pupil, me);
+    }
+  }
+
+  const actions = el('div', 'lesson-fields');
+  const yes = el('button', 'btn btn-small btn-primary', 'Ja');
+  yes.addEventListener('click', () => save({ status: 'stattgefunden', dauer: occ.dauer }));
+  const other = el('button', 'btn btn-small', 'Anders');
+  other.addEventListener('click', () => showExtra('anders'));
+  const cancelled = el('button', 'btn btn-small', 'Ausgefallen');
+  cancelled.addEventListener('click', () => showExtra('ausgefallen'));
+  const buttons = el('div', 'todo-actions');
+  buttons.append(yes, other, cancelled);
+  actions.append(buttons);
+
+  card.append(kicker, heading, meta, fields, actions, extra);
+  return card;
+}
+
 function renderOverview() {
-  const cards = holidayTodos().map(todoCard);
+  const cards = [
+    ...pendingLessons().map(lessonCard),
+    ...holidayTodos().map(todoCard),
+  ];
   const classStudents = classTodos();
   if (classStudents.length > 0) cards.unshift(classCard(classStudents));
 
@@ -597,20 +770,29 @@ function weekLessons() {
   const lessons = [];
   activeStudents().forEach((student) => {
     student.termine.forEach((termin) => {
+      const date = addDays(weekStart, termin.tag - 1);
       const lesson = {
         student,
         tag: termin.tag,
+        date,
+        datum: dayKey(date),
+        zeit: termin.zeit,
         start: toMinutes(termin.zeit),
         dauer: student.dauer,
         kind: 'normal',
         note: '',
+        record: null,
       };
       if (scheduleMode === 'real') {
-        const date = addDays(weekStart, termin.tag - 1);
-        const holiday = holidayOn(student, date);
-        if (holiday && holidayStatus(student, holiday) === 'pausiert') {
+        if (isPausedOn(student, date)) {
           lesson.kind = 'paused';
           lesson.note = 'pausiert';
+        } else {
+          lesson.record = findRecord(student.id, lesson.datum, lesson.zeit);
+          if (lesson.record && lesson.record.status === 'ausgefallen') {
+            lesson.kind = 'cancelled';
+            lesson.note = 'ausgefallen';
+          }
         }
       }
       lessons.push(lesson);
@@ -679,10 +861,10 @@ async function endDrag() {
   if (!drag) return;
   const { tag, from, to } = drag;
   drag = null;
-  const saved = await persist(() => {
+  await persist(() => {
     data.blockiert = mergeBlocks([...blockedTimes(), { tag, von: toTimeString(from), bis: toTimeString(to) }]);
   });
-  if (saved || !saved) renderSchedule();
+  renderSchedule();
 }
 
 async function removeBlock(block) {
@@ -690,6 +872,13 @@ async function removeBlock(block) {
     data.blockiert = blockedTimes().filter((b) => !(b.tag === block.tag && b.von === block.von && b.bis === block.bis));
   });
   if (saved) renderSchedule();
+}
+
+function isSelectedLesson(lesson) {
+  return Boolean(selectedLesson)
+    && selectedLesson.studentId === lesson.student.id
+    && selectedLesson.datum === lesson.datum
+    && selectedLesson.zeit === lesson.zeit;
 }
 
 function lessonBlock(lesson) {
@@ -700,11 +889,20 @@ function lessonBlock(lesson) {
   box.style.top = `${gridY(top)}px`;
   box.style.height = `${gridY(bottom) - gridY(top)}px`;
   box.title = `${fullName(lesson.student)}, ${formatTime(lesson.start)} Uhr, ${lesson.dauer} Minuten`;
-  box.append(
-    el('div', 'wg-lesson-name', lesson.student.vorname),
-    el('div', 'wg-lesson-time', `${formatTime(lesson.start)} · ${lesson.dauer} Min`),
-  );
+
+  const name = el('div', 'wg-lesson-name', lesson.student.vorname);
+  if (lesson.record && lesson.record.status === 'stattgefunden') name.append(el('span', 'wg-check', '✓'));
+  box.append(name, el('div', 'wg-lesson-time', `${formatTime(lesson.start)} · ${lesson.dauer} Min`));
   if (lesson.note) box.append(el('div', 'hand wg-lesson-note', lesson.note));
+
+  if (scheduleMode === 'real' && lesson.kind !== 'paused') {
+    box.classList.add('clickable');
+    if (isSelectedLesson(lesson)) box.classList.add('selected');
+    box.addEventListener('click', () => {
+      selectedLesson = isSelectedLesson(lesson) ? null : { studentId: lesson.student.id, datum: lesson.datum, zeit: lesson.zeit };
+      renderSchedule();
+    });
+  }
   return box;
 }
 
@@ -775,13 +973,54 @@ function renderWeekGrid(lessons) {
 
 function renderScheduleLegend() {
   const items = scheduleMode === 'real'
-    ? [['sw-normal', 'findet statt'], ['sw-dashed', 'pausiert oder verschoben'], ['sw-extra', 'Ersatz- oder Zusatzstunde'], ['sw-blocked', 'blockiert']]
+    ? [['sw-normal', 'findet statt'], ['sw-dashed', 'pausiert, verschoben oder ausgefallen'], ['sw-extra', 'Ersatz- oder Zusatzstunde'], ['sw-blocked', 'blockiert']]
     : [['sw-normal', 'feste Termine'], ['sw-blocked', 'blockiert']];
   scheduleLegend.replaceChildren(...items.map(([cls, text]) => {
     const item = el('span');
     item.append(el('span', `legend-swatch ${cls}`), text);
     return item;
   }));
+}
+
+function lessonActionButton(label, className, action) {
+  const btn = el('button', `btn btn-small ${className}`.trim(), label);
+  btn.addEventListener('click', async () => {
+    if (await action()) renderSchedule();
+  });
+  return btn;
+}
+
+function renderLessonDetail(lessons) {
+  const lesson = scheduleMode === 'real' ? lessons.find(isSelectedLesson) : null;
+  lessonDetail.hidden = !lesson;
+  if (!lesson) return;
+
+  const { student, date, record } = lesson;
+  const isPrivat = student.art === 'privat';
+  lessonDetailKicker.textContent = fullName(student);
+  lessonDetailTitle.replaceChildren(`${weekdayName(date)}, `, el('em', null, `${date.getDate()}. ${monthName(date)}`));
+
+  let status;
+  if (!record) status = isPrivat ? 'noch nicht bestätigt' : 'findet statt';
+  else if (record.status === 'ausgefallen') status = `ausgefallen, abgesagt von ${record.abgesagtVon === 'ich' ? 'mir' : 'Schüler'}`;
+  else status = `stattgefunden, ${record.dauer} Minuten${record.thema ? `, Thema: ${record.thema}` : ''}`;
+  lessonDetailMeta.textContent = `${formatTime(lesson.start)} Uhr · ${lesson.dauer} Minuten · ${status}`;
+
+  const buttons = [];
+  if (record) {
+    buttons.push(lessonActionButton('Zurücksetzen', '', () => resetLesson(lesson)));
+  } else {
+    if (isPrivat) {
+      buttons.push(lessonActionButton('Stattgefunden', 'btn-primary', () => saveLesson(lesson, {
+        status: 'stattgefunden',
+        dauer: lesson.dauer,
+        letzteImMonat: isLastInMonth(student, date),
+      })));
+    }
+    buttons.push(lessonActionButton('Ausgefallen: Schüler', '', () => saveLesson(lesson, { status: 'ausgefallen', dauer: lesson.dauer, abgesagtVon: 'schueler' })));
+    buttons.push(lessonActionButton('Ausgefallen: ich', '', () => saveLesson(lesson, { status: 'ausgefallen', dauer: lesson.dauer, abgesagtVon: 'ich' })));
+  }
+  lessonDetailButtons.replaceChildren(...buttons);
 }
 
 function freeTimes(lessons) {
@@ -804,7 +1043,7 @@ function freeTimes(lessons) {
       .filter(([from, to]) => to - from >= MIN_FREE)
       .forEach(([from, to]) => {
         const reasons = lessons
-          .filter((l) => l.tag === tag && (l.kind === 'paused' || l.kind === 'moved') && l.start < to && l.start + l.dauer > from)
+          .filter((l) => l.tag === tag && ['paused', 'moved', 'cancelled'].includes(l.kind) && l.start < to && l.start + l.dauer > from)
           .map((l) => `${l.student.vorname} ${l.note}`);
         result.push({ tag, from, to, reasons });
       });
@@ -857,7 +1096,35 @@ function renderSchedule() {
   renderWeekNav();
   renderWeekGrid(lessons);
   renderScheduleLegend();
+  renderLessonDetail(lessons);
   renderFreeTimes(lessons);
+}
+
+function renderHistory(student) {
+  const records = stunden()
+    .filter((r) => r.studentId === student.id)
+    .sort((a, b) => b.datum.localeCompare(a.datum) || b.zeit.localeCompare(a.zeit));
+
+  if (records.length === 0) {
+    lessonHistory.replaceChildren(el('div', 'history-empty', 'Noch keine Stunden erfasst.'));
+    return;
+  }
+
+  lessonHistory.replaceChildren(...records.map((record) => {
+    const date = parseDay(record.datum);
+    const row = el('div', 'history-row');
+    const dateText = `${DAYS[date.getDay()] || ''}, ${date.getDate()}. ${shortMonth(date)} ${date.getFullYear()}`;
+    const statusText = record.status === 'ausgefallen'
+      ? `ausgefallen (${record.abgesagtVon === 'ich' ? 'ich' : 'Schüler'})`
+      : `${record.dauer} Min`;
+    row.append(
+      el('span', 'history-date', dateText),
+      el('span', `history-status ${record.status}`, statusText),
+      el('span', null, record.thema || ''),
+      el('span', 'history-price', record.preis ? formatEuro(record.preis) : ''),
+    );
+    return row;
+  }));
 }
 
 function fillSelect(select, options, withEmpty) {
@@ -1370,27 +1637,32 @@ autostartToggle.addEventListener('change', async () => {
 modeButtons.forEach((btn) => {
   btn.addEventListener('click', () => {
     scheduleMode = btn.dataset.mode;
+    selectedLesson = null;
     renderSchedule();
   });
 });
 
 blockToggle.addEventListener('click', () => {
   editingBlocks = !editingBlocks;
+  selectedLesson = null;
   renderSchedule();
 });
 
 weekPrev.addEventListener('click', () => {
   weekStart = addDays(weekStart, -7);
+  selectedLesson = null;
   renderSchedule();
 });
 
 weekNext.addEventListener('click', () => {
   weekStart = addDays(weekStart, 7);
+  selectedLesson = null;
   renderSchedule();
 });
 
 weekToday.addEventListener('click', () => {
   weekStart = currentWeekStart();
+  selectedLesson = null;
   renderSchedule();
 });
 
@@ -1433,6 +1705,12 @@ detailButtons.forEach((btn) => {
   });
 });
 
+setInterval(() => {
+  if (currentPage !== 'overview') return;
+  if (todoList.contains(document.activeElement)) return;
+  renderOverview();
+}, 60000);
+
 async function init() {
   try {
     data = await window.api.loadData();
@@ -1443,11 +1721,12 @@ async function init() {
 
   const year = schoolYear();
   const missing = data.students.filter((s) => s.schuljahrGeprueft === undefined);
-  if (canSave && missing.length > 0) {
+  if (canSave && (missing.length > 0 || !data.stundenAb)) {
     await persist(() => {
       missing.forEach((s) => {
         data.students.find((t) => t.id === s.id).schuljahrGeprueft = year;
       });
+      if (!data.stundenAb) data.stundenAb = dayKey(new Date());
     });
   }
 
