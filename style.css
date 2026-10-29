@@ -1,5 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=Caveat:wght@600;700&display=swap');
-
+@import url('node_modules/@fontsource/instrument-serif/400.css');
+@import url('node_modules/@fontsource/instrument-serif/400-italic.css');
+@import url('node_modules/@fontsource/inter/400.css');
+@import url('node_modules/@fontsource/inter/500.css');
+@import url('node_modules/@fontsource/inter/600.css');
+@import url('node_modules/@fontsource/inter/700.css');
+@import url('node_modules/@fontsource/caveat/600.css');
+@import url('node_modules/@fontsource/caveat/700.css');
 :root {
   --paper: #F6F3EC;
   --paper-dark: #EEE9DE;
