@@ -32,6 +32,8 @@ let drag = null;
 let selectedLesson = null;
 let extraOpen = false;
 let moving = false;
+let invoiceFilter = 'alle';
+let selectedInvoice = null;
 
 const navItems = document.querySelectorAll('.nav-item');
 const studentsNav = document.querySelector('[data-page="students"]');
@@ -110,6 +112,13 @@ const detailAll = document.getElementById('detail-all');
 const detailAllLabel = document.getElementById('detail-all-label');
 const calendarLegend = document.getElementById('calendar-legend');
 const yearCalendar = document.getElementById('year-calendar');
+const invoiceList = document.getElementById('invoice-list');
+const invoicesEmpty = document.getElementById('invoices-empty');
+const statOffen = document.getElementById('stat-offen');
+const statVerschickt = document.getElementById('stat-verschickt');
+const statBezahlt = document.getElementById('stat-bezahlt');
+const statYear = document.getElementById('stat-year');
+const filterButtons = document.querySelectorAll('[data-filter]');
 
 function startOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -344,6 +353,15 @@ function nachholKorrekturen() {
   return data.nachholKorrekturen || [];
 }
 
+function rechnungen() {
+  return data.rechnungen || [];
+}
+
+function cancelText(record) {
+  if (record.abgesagtVon === 'nichtErschienen') return 'nicht erschienen';
+  return `ausgefallen, abgesagt von ${record.abgesagtVon === 'ich' ? 'mir' : 'Schüler'}`;
+}
+
 function findRecord(studentId, datum, zeit) {
   return stunden().find((r) => r.studentId === studentId && r.datum === datum && r.zeit === zeit) || null;
 }
@@ -423,9 +441,8 @@ function nachholEvents(student) {
     .filter((r) => r.studentId === student.id && r.status === 'ausgefallen' && r.datum >= createdKey)
     .forEach((r) => {
       const sonder = sonderAt(student.id, r.datum, r.zeit);
-      const who = r.abgesagtVon === 'ich' ? 'mir' : 'Schüler';
-      if (!sonder) events.push({ datum: r.datum, delta: 1, text: `ausgefallen, abgesagt von ${who}` });
-      else if (sonder.ersetzt) events.push({ datum: r.datum, delta: 1, text: `Ersatztermin ausgefallen, abgesagt von ${who}` });
+      if (!sonder) events.push({ datum: r.datum, delta: 1, text: cancelText(r) });
+      else if (sonder.ersetzt) events.push({ datum: r.datum, delta: 1, text: `Ersatztermin ${cancelText(r)}` });
     });
 
   sonderTermine()
@@ -457,6 +474,13 @@ function nachholStand(student) {
   return (student.nachholStart || 0) + nachholEvents(student).reduce((sum, e) => sum + e.delta, 0);
 }
 
+function lessonPrice(art, values) {
+  if (art !== 'privat') return 0;
+  if (values.status === 'stattgefunden') return priceFor(values.dauer);
+  if (values.abgesagtVon === 'nichtErschienen') return priceFor(values.dauer) / 2;
+  return 0;
+}
+
 function saveLesson(occ, values) {
   const art = occ.student.art;
   return persist(() => {
@@ -469,7 +493,7 @@ function saveLesson(occ, values) {
       art,
       status: values.status,
       dauer: values.dauer,
-      preis: values.status === 'stattgefunden' && art === 'privat' ? priceFor(values.dauer) : 0,
+      preis: lessonPrice(art, values),
       thema: values.thema || '',
       letzteImMonat: Boolean(values.letzteImMonat),
       abgesagtVon: values.abgesagtVon || null,
@@ -496,6 +520,190 @@ function deleteSonder(sonder) {
     data.sonderTermine = sonderTermine().filter((s) => s.id !== sonder.id);
     data.stunden = stunden().filter((r) => !(r.studentId === sonder.studentId && r.datum === sonder.datum && r.zeit === sonder.zeit));
   });
+}
+
+function isBillable(record) {
+  if (record.art !== 'privat') return false;
+  return record.status === 'stattgefunden' || record.abgesagtVon === 'nichtErschienen';
+}
+
+function toCents(value) {
+  return Math.round(value * 100);
+}
+
+function centsText(cents) {
+  return cents % 100 === 0 ? `${cents / 100}€` : `${(cents / 100).toFixed(2).replace('.', ',')}€`;
+}
+
+function monthKey(date) {
+  return dayKey(date).slice(0, 7);
+}
+
+function monthDate(monat) {
+  const [year, month] = monat.split('-').map(Number);
+  return new Date(year, month - 1, 1);
+}
+
+function monthLabel(monat) {
+  const date = monthDate(monat);
+  return `${monthName(date)} ${date.getFullYear()}`;
+}
+
+function invoiceKey(studentId, monat) {
+  return `${studentId}|${monat}`;
+}
+
+function savedInvoice(studentId, monat) {
+  return rechnungen().find((r) => r.studentId === studentId && r.monat === monat) || null;
+}
+
+function allInvoices() {
+  const groups = new Map();
+  stunden().filter(isBillable).forEach((record) => {
+    const student = data.students.find((s) => s.id === record.studentId);
+    if (!student) return;
+    const monat = record.datum.slice(0, 7);
+    const key = invoiceKey(student.id, monat);
+    if (!groups.has(key)) groups.set(key, { key, student, monat, records: [] });
+    groups.get(key).records.push(record);
+  });
+
+  const currentMonth = monthKey(new Date());
+  const pending = pendingLessons();
+
+  return [...groups.values()].map((inv) => {
+    inv.records.sort((a, b) => a.datum.localeCompare(b.datum) || a.zeit.localeCompare(b.zeit));
+    inv.cents = inv.records.reduce((sum, r) => sum + toCents(r.preis), 0);
+    inv.saved = savedInvoice(inv.student.id, inv.monat);
+    inv.status = inv.saved ? inv.saved.status : 'offen';
+    inv.edited = Boolean(inv.saved) && typeof inv.saved.text === 'string';
+    inv.unconfirmed = pending.filter((o) => o.student.id === inv.student.id && o.datum.startsWith(inv.monat)).length;
+    const markedLast = stunden().some((r) => r.studentId === inv.student.id && r.datum.startsWith(inv.monat) && r.letzteImMonat);
+    inv.ready = markedLast || inv.monat < currentMonth;
+    return inv;
+  }).sort((a, b) => b.monat.localeCompare(a.monat) || byFirstName(a.student, b.student));
+}
+
+function invoiceLine(record) {
+  const date = parseDay(record.datum);
+  const day = `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}`;
+  const end = toTimeString(toMinutes(record.zeit) + record.dauer);
+  const note = record.status === 'stattgefunden' ? record.thema : 'nicht erschienen';
+  return ['•', day, `${record.zeit}-${end} Uhr`, note, centsText(toCents(record.preis))].filter(Boolean).join(' ');
+}
+
+function autoInvoiceText(inv) {
+  return [
+    `${inv.student.vorname} ${monthName(monthDate(inv.monat))}:`,
+    ...inv.records.map(invoiceLine),
+    `= ${centsText(inv.cents)}`,
+  ].join('\n');
+}
+
+function invoiceText(inv) {
+  return inv.edited ? inv.saved.text : autoInvoiceText(inv);
+}
+
+function updateInvoice(inv, change) {
+  return persist(() => {
+    data.rechnungen = rechnungen();
+    let target = data.rechnungen.find((r) => r.studentId === inv.student.id && r.monat === inv.monat);
+    if (!target) {
+      target = { id: crypto.randomUUID(), studentId: inv.student.id, monat: inv.monat, status: 'offen', text: null };
+      data.rechnungen.push(target);
+    }
+    change(target);
+  });
+}
+
+function setInvoiceStatus(inv, status) {
+  return updateInvoice(inv, (target) => {
+    target.status = status;
+    const now = new Date().toISOString();
+    if (status === 'offen') {
+      target.verschicktAm = null;
+      target.bezahltAm = null;
+    }
+    if (status === 'verschickt') {
+      target.verschicktAm = target.verschicktAm || now;
+      target.bezahltAm = null;
+    }
+    if (status === 'bezahlt') {
+      target.verschicktAm = target.verschicktAm || now;
+      target.bezahltAm = now;
+    }
+  });
+}
+
+function invoiceEditor(inv, statuses, refresh) {
+  const box = el('div', 'invoice-editor');
+
+  const area = el('textarea', 'invoice-text');
+  area.value = invoiceText(inv);
+  area.rows = inv.records.length + 3;
+  area.spellcheck = false;
+  area.addEventListener('change', async () => {
+    const value = area.value;
+    await updateInvoice(inv, (target) => {
+      target.text = value === autoInvoiceText(inv) ? null : value;
+    });
+  });
+
+  const actions = el('div', 'todo-actions');
+
+  const copy = el('button', 'btn btn-small btn-primary', 'Kopieren');
+  let timer = null;
+  copy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(area.value);
+      copy.textContent = 'Kopiert!';
+    } catch (error) {
+      copy.textContent = 'Hat nicht geklappt';
+    }
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      copy.textContent = 'Kopieren';
+    }, 2000);
+  });
+  actions.append(copy);
+
+  statuses.forEach(([status, label]) => {
+    const btn = el('button', 'btn btn-small', label);
+    if (inv.status === status) btn.classList.add('chosen');
+    btn.addEventListener('click', async () => {
+      if (await setInvoiceStatus(inv, status)) refresh();
+    });
+    actions.append(btn);
+  });
+
+  if (inv.edited) {
+    const reset = el('button', 'btn btn-small', 'Text neu erstellen');
+    reset.addEventListener('click', async () => {
+      const saved = await updateInvoice(inv, (target) => {
+        target.text = null;
+      });
+      if (saved) refresh();
+    });
+    actions.append(reset);
+  }
+
+  box.append(area, actions);
+  if (inv.edited) box.append(el('div', 'hand invoice-note', 'Text von Hand geändert'));
+  if (inv.unconfirmed > 0) {
+    box.append(el('div', 'hand invoice-note', `${inv.unconfirmed === 1 ? 'Eine Stunde ist' : `${inv.unconfirmed} Stunden sind`} noch nicht bestätigt`));
+  }
+  return box;
+}
+
+function invoiceCard(inv) {
+  const card = el('article', 'todo-card');
+  const kicker = el('div', 'eyebrow todo-kicker', 'Rechnung · Bereit zum Verschicken');
+  const heading = el('div', 'todo-title', `${fullName(inv.student)} `);
+  heading.append(el('em', null, monthLabel(inv.monat)));
+  const count = inv.records.length;
+  const meta = el('div', 'student-meta', `${count} ${count === 1 ? 'Stunde' : 'Stunden'} · ${formatEuro(inv.cents / 100)}${inv.student.rechnungAn ? ` · an ${inv.student.rechnungAn}` : ''}`);
+  card.append(kicker, heading, meta, invoiceEditor(inv, [['verschickt', 'Verschickt'], ['bezahlt', 'Schon bezahlt']], renderOverview));
+  return card;
 }
 
 function pauseNote(student) {
@@ -550,7 +758,7 @@ function showPage(id) {
   pages.forEach((page) => {
     page.hidden = page.id !== `page-${id}`;
   });
-  newStudentBtn.hidden = ['student-form', 'settings', 'holidays', 'schedule'].includes(id);
+  newStudentBtn.hidden = ['student-form', 'settings', 'holidays', 'schedule', 'invoices'].includes(id);
 }
 
 function openOverview() {
@@ -583,6 +791,13 @@ function openSchedule() {
   moving = false;
   showPage('schedule');
   renderSchedule();
+}
+
+function openInvoices() {
+  eyebrow.textContent = 'Privatschüler';
+  title.innerHTML = 'Rechnungen<em>.</em>';
+  showPage('invoices');
+  renderInvoices();
 }
 
 function openArchive() {
@@ -835,7 +1050,9 @@ function lessonCard(occ) {
       pupil.addEventListener('click', () => save({ status: 'ausgefallen', dauer: occ.dauer, abgesagtVon: 'schueler' }));
       const me = el('button', 'btn btn-small', 'Ich');
       me.addEventListener('click', () => save({ status: 'ausgefallen', dauer: occ.dauer, abgesagtVon: 'ich' }));
-      extra.replaceChildren(label, pupil, me);
+      const noShow = el('button', 'btn btn-small', `Nicht erschienen · ${formatEuro(priceFor(occ.dauer) / 2)}`);
+      noShow.addEventListener('click', () => save({ status: 'ausgefallen', dauer: occ.dauer, abgesagtVon: 'nichtErschienen' }));
+      extra.replaceChildren(label, pupil, me, noShow);
     }
   }
 
@@ -857,6 +1074,7 @@ function lessonCard(occ) {
 function renderOverview() {
   const cards = [
     ...pendingLessons().map(lessonCard),
+    ...allInvoices().filter((inv) => inv.status === 'offen' && inv.ready && inv.unconfirmed === 0).map(invoiceCard),
     ...holidayTodos().map(todoCard),
   ];
   const classStudents = classTodos();
@@ -942,7 +1160,7 @@ function weekLessons() {
           lesson.record = findRecord(student.id, lesson.datum, lesson.zeit);
           if (lesson.record && lesson.record.status === 'ausgefallen') {
             lesson.kind = 'cancelled';
-            lesson.note = 'ausgefallen';
+            lesson.note = lesson.record.abgesagtVon === 'nichtErschienen' ? 'nicht erschienen' : 'ausgefallen';
           }
         }
       }
@@ -1198,7 +1416,7 @@ function renderLessonDetail(lessons) {
     buttons.push(lessonActionButton('Verschiebung aufheben', '', () => deleteSonder(lesson.movedTo)));
   } else {
     if (!record) status = isPrivat ? 'noch nicht bestätigt' : 'findet statt';
-    else if (record.status === 'ausgefallen') status = `ausgefallen, abgesagt von ${record.abgesagtVon === 'ich' ? 'mir' : 'Schüler'}`;
+    else if (record.status === 'ausgefallen') status = cancelText(record);
     else status = `stattgefunden, ${record.dauer} Minuten${record.thema ? `, Thema: ${record.thema}` : ''}`;
     if (lesson.sonder) status = `${sonderNote(lesson.sonder)} · ${status}`;
 
@@ -1212,8 +1430,12 @@ function renderLessonDetail(lessons) {
           letzteImMonat: isLastInMonth(student, date),
         })));
       }
-      buttons.push(lessonActionButton('Ausgefallen: Schüler', '', () => saveLesson(lesson, { status: 'ausgefallen', dauer: lesson.dauer, abgesagtVon: 'schueler' })));
-      buttons.push(lessonActionButton('Ausgefallen: ich', '', () => saveLesson(lesson, { status: 'ausgefallen', dauer: lesson.dauer, abgesagtVon: 'ich' })));
+      const last = isLastInMonth(student, date);
+      buttons.push(lessonActionButton('Ausgefallen: Schüler', '', () => saveLesson(lesson, { status: 'ausgefallen', dauer: lesson.dauer, abgesagtVon: 'schueler', letzteImMonat: last })));
+      buttons.push(lessonActionButton('Ausgefallen: ich', '', () => saveLesson(lesson, { status: 'ausgefallen', dauer: lesson.dauer, abgesagtVon: 'ich', letzteImMonat: last })));
+      if (isPrivat) {
+        buttons.push(lessonActionButton('Nicht erschienen', '', () => saveLesson(lesson, { status: 'ausgefallen', dauer: lesson.dauer, abgesagtVon: 'nichtErschienen', letzteImMonat: last })));
+      }
       if (!lesson.sonder) {
         const moveBtn = el('button', 'btn btn-small', 'Verschieben');
         moveBtn.addEventListener('click', () => {
@@ -1355,6 +1577,68 @@ function renderSchedule() {
   renderFreeTimes(lessons);
 }
 
+function invoiceRow(inv) {
+  const row = el('div', 'invoice-row');
+  row.tabIndex = 0;
+  if (selectedInvoice === inv.key) row.classList.add('selected');
+
+  const nameCell = el('div');
+  const name = el('div', 'student-name');
+  const dot = el('span', 'tl-dot');
+  dot.style.background = inv.student.farbe;
+  name.append(dot, fullName(inv.student));
+  nameCell.append(name, el('div', 'student-meta', monthLabel(inv.monat)));
+  if (!inv.ready) nameCell.append(el('div', 'hand', 'Monat läuft noch'));
+
+  const count = inv.records.length;
+  const countCell = el('div', 'student-meta', `${count} ${count === 1 ? 'Stunde' : 'Stunden'}`);
+  const sumCell = el('div', 'student-time', formatEuro(inv.cents / 100));
+  const labels = { offen: 'offen', verschickt: 'verschickt', bezahlt: 'bezahlt' };
+  const statusCell = el('div');
+  statusCell.append(el('span', `inv-status ${inv.status}`, labels[inv.status]));
+
+  row.append(nameCell, countCell, sumCell, statusCell);
+
+  const toggle = () => {
+    selectedInvoice = selectedInvoice === inv.key ? null : inv.key;
+    renderInvoices();
+  };
+  row.addEventListener('click', toggle);
+  row.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') toggle();
+  });
+  return row;
+}
+
+function renderInvoices() {
+  const list = allInvoices();
+  const year = new Date().getFullYear();
+  const sum = (items) => formatEuro(items.reduce((total, inv) => total + inv.cents, 0) / 100);
+
+  statOffen.textContent = sum(list.filter((inv) => inv.status === 'offen'));
+  statVerschickt.textContent = sum(list.filter((inv) => inv.status === 'verschickt'));
+  statBezahlt.textContent = sum(list.filter((inv) => inv.status === 'bezahlt' && inv.saved.bezahltAm && new Date(inv.saved.bezahltAm).getFullYear() === year));
+  statYear.textContent = String(year);
+
+  filterButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.filter === invoiceFilter));
+
+  const shown = list.filter((inv) => invoiceFilter === 'alle' || inv.status === invoiceFilter);
+  const nodes = [];
+  shown.forEach((inv) => {
+    nodes.push(invoiceRow(inv));
+    if (selectedInvoice === inv.key) {
+      const holder = el('div', 'invoice-open');
+      holder.append(invoiceEditor(inv, [['offen', 'Offen'], ['verschickt', 'Verschickt'], ['bezahlt', 'Bezahlt']], renderInvoices));
+      nodes.push(holder);
+    }
+  });
+
+  invoiceList.replaceChildren(...nodes);
+  invoiceList.hidden = shown.length === 0;
+  invoicesEmpty.hidden = shown.length > 0;
+  invoicesEmpty.textContent = list.length === 0 ? 'Noch keine Rechnungen. Sobald du Privatstunden bestätigst, erscheinen sie hier.' : 'Keine Rechnungen mit diesem Status.';
+}
+
 function renderHistory(student) {
   const records = stunden()
     .filter((r) => r.studentId === student.id)
@@ -1367,9 +1651,9 @@ function renderHistory(student) {
 
   lessonHistory.replaceChildren(...records.map((record) => {
     const row = el('div', 'history-row');
-    const statusText = record.status === 'ausgefallen'
-      ? `ausgefallen (${record.abgesagtVon === 'ich' ? 'ich' : 'Schüler'})`
-      : `${record.dauer} Min`;
+    let statusText = `${record.dauer} Min`;
+    if (record.abgesagtVon === 'nichtErschienen') statusText = 'nicht erschienen';
+    else if (record.status === 'ausgefallen') statusText = `ausgefallen (${record.abgesagtVon === 'ich' ? 'ich' : 'Schüler'})`;
     row.append(
       el('span', 'history-date', shortDate(parseDay(record.datum))),
       el('span', `history-status ${record.status}`, statusText),
@@ -1831,6 +2115,7 @@ navItems.forEach((item) => {
     else if (page === 'students') openStudents();
     else if (page === 'schedule') openSchedule();
     else if (page === 'holidays') openHolidays();
+    else if (page === 'invoices') openInvoices();
     else if (page === 'archive') openArchive();
     else if (page === 'settings') openSettings();
     else openPlaceholder(item.lastChild.textContent.trim());
@@ -2000,6 +2285,14 @@ weekToday.addEventListener('click', () => {
   selectedLesson = null;
   moving = false;
   renderSchedule();
+});
+
+filterButtons.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    invoiceFilter = btn.dataset.filter;
+    selectedInvoice = null;
+    renderInvoices();
+  });
 });
 
 viewButtons.forEach((btn) => {

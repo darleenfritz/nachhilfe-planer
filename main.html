@@ -17,7 +17,7 @@
       <button class="nav-item" data-page="students"><span class="num">02</span>Schüler</button>
       <button class="nav-item" data-page="schedule"><span class="num">03</span>Stundenplan</button>
       <button class="nav-item" data-page="holidays"><span class="num">04</span>Ferien</button>
-      <button class="nav-item" data-page="placeholder"><span class="num">05</span>Rechnungen</button>
+      <button class="nav-item" data-page="invoices"><span class="num">05</span>Rechnungen</button>
       <button class="nav-item" data-page="placeholder"><span class="num">06</span>Schulaufgaben</button>
       <button class="nav-item" data-page="placeholder"><span class="num">07</span>Aufgaben</button>
 
@@ -155,6 +155,35 @@
             <div class="student-meta" id="free-note">nur Zeiten ab 45 Minuten</div>
           </aside>
         </div>
+      </section>
+
+      <section class="page" id="page-invoices" hidden>
+        <div class="invoice-stats">
+          <div class="invoice-stat">
+            <div class="eyebrow">Noch nicht verschickt</div>
+            <div class="invoice-stat-value" id="stat-offen"></div>
+          </div>
+          <div class="invoice-stat">
+            <div class="eyebrow">Warten auf Zahlung</div>
+            <div class="invoice-stat-value" id="stat-verschickt"></div>
+          </div>
+          <div class="invoice-stat">
+            <div class="eyebrow">Bezahlt <span id="stat-year"></span></div>
+            <div class="invoice-stat-value" id="stat-bezahlt"></div>
+          </div>
+        </div>
+
+        <div class="holiday-toolbar">
+          <div class="view-switch">
+            <button class="btn btn-small active" data-filter="alle">Alle</button>
+            <button class="btn btn-small" data-filter="offen">Offen</button>
+            <button class="btn btn-small" data-filter="verschickt">Verschickt</button>
+            <button class="btn btn-small" data-filter="bezahlt">Bezahlt</button>
+          </div>
+        </div>
+
+        <div class="invoice-list" id="invoice-list"></div>
+        <div class="empty" id="invoices-empty" hidden></div>
       </section>
 
       <section class="page" id="page-holidays" hidden>
