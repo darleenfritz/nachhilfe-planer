@@ -336,7 +336,7 @@ function activeStudent(id) {
 
 async function persist(change) {
   if (!canSave) {
-    alert('Deine Daten konnten beim Start nicht geladen werden. Damit nichts überschrieben wird, ist Speichern gerade gesperrt.');
+    showAlert('Deine Daten konnten beim Start nicht geladen werden. Damit nichts überschrieben wird, ist Speichern gerade gesperrt.');
     return false;
   }
   const before = structuredClone(data);
@@ -347,9 +347,83 @@ async function persist(change) {
     return true;
   } catch (error) {
     data = before;
-    alert(`Speichern hat nicht geklappt: ${error.message}`);
+    showAlert(`Speichern hat nicht geklappt: ${error.message}`);
     return false;
   }
+}
+
+const dialog = document.getElementById('dialog');
+const dialogKicker = document.getElementById('dialog-kicker');
+const dialogText = document.getElementById('dialog-text');
+const dialogActions = document.getElementById('dialog-actions');
+const dialogQueue = [];
+let dialogOpen = false;
+
+function openDialog(options) {
+  return new Promise((resolve) => {
+    dialogQueue.push({ ...options, resolve });
+    if (!dialogOpen) nextDialog();
+  });
+}
+
+function nextDialog() {
+  const current = dialogQueue.shift();
+  if (!current) {
+    dialogOpen = false;
+    dialog.hidden = true;
+    return;
+  }
+  dialogOpen = true;
+  const previousFocus = document.activeElement;
+
+  const close = (value) => {
+    document.removeEventListener('keydown', onKey, true);
+    dialog.hidden = true;
+    if (previousFocus && previousFocus.focus) previousFocus.focus();
+    current.resolve(value);
+    nextDialog();
+  };
+
+  const onKey = (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      close(current.cancelValue);
+    }
+  };
+
+  dialogKicker.textContent = current.kicker;
+  dialogText.textContent = current.text;
+  const buttons = current.buttons.map((b) => {
+    const btn = el('button', `btn btn-small ${b.className || ''}`.trim(), b.label);
+    btn.type = 'button';
+    btn.addEventListener('click', () => close(b.value));
+    return btn;
+  });
+  dialogActions.replaceChildren(...buttons);
+  dialog.hidden = false;
+  document.addEventListener('keydown', onKey, true);
+  buttons[buttons.length - 1].focus();
+}
+
+function askConfirm(text, okLabel = 'Okay') {
+  return openDialog({
+    kicker: 'Bist du sicher?',
+    text,
+    cancelValue: false,
+    buttons: [
+      { label: 'Abbrechen', value: false },
+      { label: okLabel, value: true, className: 'btn-danger' },
+    ],
+  });
+}
+
+function showAlert(text) {
+  return openDialog({
+    kicker: 'Hinweis',
+    text,
+    cancelValue: true,
+    buttons: [{ label: 'Okay', value: true, className: 'btn-primary' }],
+  });
 }
 
 function studentCode(student) {
@@ -2130,7 +2204,7 @@ function renderExamFiles() {
     name.type = 'button';
     name.addEventListener('click', async () => {
       const error = await window.api.openFile(f.file);
-      if (error) alert(`Die Datei konnte nicht geöffnet werden: ${error}`);
+      if (error) showAlert(`Die Datei konnte nicht geöffnet werden: ${error}`);
     });
     const remove = el('button', 'btn-icon', '×');
     remove.type = 'button';
@@ -2228,7 +2302,7 @@ function renderExams() {
         const btn = el('button', 'exam-file-name', `📎 ${f.name}`);
         btn.addEventListener('click', async () => {
           const error = await window.api.openFile(f.file);
-          if (error) alert(`Die Datei konnte nicht geöffnet werden: ${error}`);
+          if (error) showAlert(`Die Datei konnte nicht geöffnet werden: ${error}`);
         });
         files.append(btn);
       });
@@ -2379,10 +2453,10 @@ function taskRow(task) {
       if (task.url) await window.api.openLink(task.url);
       else if (task.datei) {
         const error = await window.api.openFile(task.datei.file);
-        if (error) alert(`Die Datei konnte nicht geöffnet werden: ${error}`);
+        if (error) showAlert(`Die Datei konnte nicht geöffnet werden: ${error}`);
       }
     } catch (error) {
-      alert(`Konnte nicht geöffnet werden: ${error.message}`);
+      showAlert(`Konnte nicht geöffnet werden: ${error.message}`);
     }
   });
   actions.append(open);
@@ -2474,7 +2548,7 @@ function renderTaskFile() {
   name.type = 'button';
   name.addEventListener('click', async () => {
     const error = await window.api.openFile(taskFile.file);
-    if (error) alert(`Die Datei konnte nicht geöffnet werden: ${error}`);
+    if (error) showAlert(`Die Datei konnte nicht geöffnet werden: ${error}`);
   });
   const remove = el('button', 'btn-icon', '×');
   remove.type = 'button';
@@ -3025,7 +3099,7 @@ document.getElementById('cancel-form').addEventListener('click', () => {
 archiveBtn.addEventListener('click', async () => {
   const student = data.students.find((s) => s.id === editingId);
   if (!student) return;
-  if (!confirm(`${fullName(student)} ins Archiv verschieben? Du kannst den Schüler dort jederzeit wiederherstellen.`)) return;
+  if (!(await askConfirm(`${fullName(student)} ins Archiv verschieben? Du kannst den Schüler dort jederzeit wiederherstellen.`, 'Archivieren'))) return;
 
   const saved = await persist(() => {
     const target = data.students.find((s) => s.id === editingId);
@@ -3099,7 +3173,7 @@ backupNowBtn.addEventListener('click', async () => {
     await renderBackupInfo(await window.api.backupNow());
     backupNowBtn.textContent = 'Gesichert!';
   } catch (error) {
-    alert(`Die Sicherung hat nicht geklappt: ${error.message}`);
+    showAlert(`Die Sicherung hat nicht geklappt: ${error.message}`);
   }
   setTimeout(() => {
     backupNowBtn.textContent = 'Jetzt sichern';
@@ -3108,7 +3182,7 @@ backupNowBtn.addEventListener('click', async () => {
 
 document.getElementById('backup-open').addEventListener('click', async () => {
   const error = await window.api.openBackupFolder();
-  if (error) alert(`Der Ordner konnte nicht geöffnet werden: ${error}`);
+  if (error) showAlert(`Der Ordner konnte nicht geöffnet werden: ${error}`);
 });
 
 document.getElementById('backup-choose').addEventListener('click', async () => {
@@ -3125,7 +3199,7 @@ autostartToggle.addEventListener('change', async () => {
     autostartToggle.checked = await window.api.setAutostart(autostartToggle.checked);
   } catch (error) {
     autostartToggle.checked = !autostartToggle.checked;
-    alert(`Der Autostart konnte nicht geändert werden: ${error.message}`);
+    showAlert(`Der Autostart konnte nicht geändert werden: ${error.message}`);
   }
 });
 
@@ -3236,7 +3310,7 @@ taskAttach.addEventListener('click', async () => {
     taskFileAdded = files[0].file;
     renderTaskFile();
   } catch (error) {
-    alert(`Die Datei konnte nicht angehängt werden: ${error.message}`);
+    showAlert(`Die Datei konnte nicht angehängt werden: ${error.message}`);
   }
 });
 
@@ -3248,7 +3322,7 @@ document.getElementById('task-cancel').addEventListener('click', () => {
 taskDelete.addEventListener('click', async () => {
   const task = aufgaben().find((a) => a.id === editingTaskId);
   if (!task) return;
-  if (!confirm(`„${task.titel}“ wirklich löschen?`)) return;
+  if (!(await askConfirm(`„${task.titel}“ wirklich löschen?`, 'Löschen'))) return;
   const saved = await persist(() => {
     data.aufgaben = aufgaben().filter((a) => a.id !== task.id);
   });
@@ -3265,11 +3339,11 @@ taskForm.addEventListener('submit', async (event) => {
   const f = taskForm.elements;
   const url = cleanUrl(f.url.value.trim());
   if (url === undefined) {
-    alert('Der Link sieht nicht richtig aus. Kopiere ihn am besten direkt aus dem Browser.');
+    showAlert('Der Link sieht nicht richtig aus. Kopiere ihn am besten direkt aus dem Browser.');
     return;
   }
   if (!url && !taskFile) {
-    alert('Bitte gib einen Link ein oder hänge eine Datei an.');
+    showAlert('Bitte gib einen Link ein oder hänge eine Datei an.');
     return;
   }
   const values = {
@@ -3307,7 +3381,7 @@ examAttach.addEventListener('click', async () => {
     examAdded = [...examAdded, ...files.map((f) => f.file)];
     renderExamFiles();
   } catch (error) {
-    alert(`Die Dateien konnten nicht angehängt werden: ${error.message}`);
+    showAlert(`Die Dateien konnten nicht angehängt werden: ${error.message}`);
   }
 });
 
@@ -3319,7 +3393,7 @@ document.getElementById('exam-cancel').addEventListener('click', () => {
 examDelete.addEventListener('click', async () => {
   const exam = schulaufgaben().find((e) => e.id === editingExamId);
   if (!exam) return;
-  if (!confirm(`${exam.art} am ${longDate(examDate(exam))} wirklich löschen? Angehängte Dateien werden auch gelöscht.`)) return;
+  if (!(await askConfirm(`${exam.art} am ${longDate(examDate(exam))} wirklich löschen? Angehängte Dateien werden auch gelöscht.`, 'Löschen'))) return;
   const saved = await persist(() => {
     data.schulaufgaben = schulaufgaben().filter((e) => e.id !== exam.id);
   });
@@ -3424,7 +3498,7 @@ async function init() {
     data = await window.api.loadData();
   } catch (error) {
     canSave = false;
-    alert(`Deine Daten konnten nicht geladen werden: ${error.message}`);
+    showAlert(`Deine Daten konnten nicht geladen werden: ${error.message}`);
   }
 
   const year = schoolYear();
