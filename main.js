@@ -100,13 +100,30 @@ function safeBackup(data) {
   }
 }
 
+function insideGitProject(folder) {
+  let current = path.resolve(folder);
+  while (true) {
+    if (fs.existsSync(path.join(current, '.git'))) return current;
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
 async function chooseBackupFolder() {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Ordner für Sicherungen wählen',
     properties: ['openDirectory', 'createDirectory'],
   });
   if (result.canceled || result.filePaths.length === 0) return null;
-  return result.filePaths[0];
+  const folder = result.filePaths[0];
+  const project = insideGitProject(folder);
+  if (project) {
+    return {
+      error: `Dieser Ordner liegt im Programmierprojekt „${path.basename(project)}“. Sicherungen dort könnten mit auf GitHub landen. Bitte wähl einen anderen Ordner.`,
+    };
+  }
+  return { folder };
 }
 
 function readHolidayCache() {

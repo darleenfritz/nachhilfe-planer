@@ -1,5 +1,15 @@
 const DAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 const WEEKDAYS_LONG = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+const DEFAULT_MAIN = '#FF2E88';
+const DEFAULT_SECOND = '#C6F432';
+const COLOR_PRESETS = [
+  { name: 'Pink und Limette', main: '#FF2E88', second: '#C6F432' },
+  { name: 'Blau und Gelb', main: '#2F5BFF', second: '#FFD23F' },
+  { name: 'Orange und Mint', main: '#FF6B2C', second: '#7CF2C4' },
+  { name: 'Lila und Limette', main: '#8B5CF6', second: '#C6F432' },
+  { name: 'Rot und Himmelblau', main: '#E2363B', second: '#9AD7FF' },
+  { name: 'Türkis und Rosa', main: '#00A6A6', second: '#FFB3D9' },
+];
 const COLORS = ['#FF2E88', '#C6F432', '#3D8BF2', '#F5A623', '#9B6BFF', '#22B573', '#00B8D9', '#F2668F'];
 const DURATIONS = [30, 45, 50, 60];
 const RANGE_MONTHS = 3;
@@ -135,6 +145,12 @@ const autostartToggle = document.getElementById('autostart-toggle');
 const backupStatus = document.getElementById('backup-status');
 const backupFolderText = document.getElementById('backup-folder');
 const backupNowBtn = document.getElementById('backup-now');
+const colorPresets = document.getElementById('color-presets');
+const colorMain = document.getElementById('color-main');
+const colorSecond = document.getElementById('color-second');
+const plattformToggle = document.getElementById('plattform-toggle');
+const plattformHint = document.getElementById('plattform-hint');
+const artField = document.getElementById('art-field');
 const modeButtons = document.querySelectorAll('[data-mode]');
 const blockToggle = document.getElementById('block-toggle');
 const blockHint = document.getElementById('block-hint');
@@ -424,6 +440,58 @@ function showAlert(text) {
     cancelValue: true,
     buttons: [{ label: 'Okay', value: true, className: 'btn-primary' }],
   });
+}
+
+function themeColors() {
+  return {
+    main: data.settings.farbeHaupt || DEFAULT_MAIN,
+    second: data.settings.farbeZweit || DEFAULT_SECOND,
+  };
+}
+
+function applyTheme(colors = themeColors()) {
+  document.documentElement.style.setProperty('--pink', colors.main);
+  document.documentElement.style.setProperty('--lime', colors.second);
+}
+
+function plattformOn() {
+  return data.settings.plattform !== false;
+}
+
+function renderColorSettings() {
+  const { main, second } = themeColors();
+  colorMain.value = main.toLowerCase();
+  colorSecond.value = second.toLowerCase();
+  colorPresets.replaceChildren(...COLOR_PRESETS.map((preset) => {
+    const btn = el('button', 'color-preset');
+    btn.type = 'button';
+    btn.title = preset.name;
+    btn.setAttribute('aria-label', preset.name);
+    if (preset.main.toLowerCase() === main.toLowerCase() && preset.second.toLowerCase() === second.toLowerCase()) btn.classList.add('active');
+    const a = el('span');
+    a.style.background = preset.main;
+    const b = el('span');
+    b.style.background = preset.second;
+    btn.append(a, b);
+    btn.addEventListener('click', () => saveColors(preset.main, preset.second));
+    return btn;
+  }));
+}
+
+async function saveColors(main, second) {
+  const saved = await persist(() => {
+    data.settings.farbeHaupt = main;
+    data.settings.farbeZweit = second;
+  });
+  applyTheme();
+  if (saved) renderColorSettings();
+}
+
+function renderPlattformSettings() {
+  plattformToggle.checked = plattformOn();
+  const count = activeStudents().filter((s) => s.art === 'plattform').length;
+  plattformHint.hidden = plattformOn() || count === 0;
+  plattformHint.textContent = `Du hast noch ${count} Plattformschüler. ${count === 1 ? 'Er bleibt' : 'Sie bleiben'} erhalten, neue kannst du aber nicht mehr anlegen.`;
 }
 
 function studentCode(student) {
@@ -1089,6 +1157,8 @@ async function openSettings() {
   } catch (error) {
     autostartToggle.disabled = true;
   }
+  renderColorSettings();
+  renderPlattformSettings();
   renderBackupInfo();
 }
 
@@ -1122,6 +1192,7 @@ function openForm(student = null) {
   historySection.hidden = !student;
   regularSection.hidden = !student;
   examSection.hidden = !student;
+  if (student && student.art === 'plattform') artField.hidden = false;
   nachholSection.hidden = !student || student.art !== 'plattform';
   if (student) {
     fillForm(student);
@@ -1469,6 +1540,7 @@ function buildSummary() {
   const unpaid = allInvoices().filter((inv) => inv.status !== 'bezahlt');
   const texts = todoTexts();
   return {
+    theme: themeColors(),
     exam: nextExamSummary(),
     count: texts.length,
     todos: texts,
@@ -2713,6 +2785,7 @@ function resetForm() {
   updateLand();
   updateArt();
   updatePrice();
+  artField.hidden = !plattformOn();
 }
 
 function fillForm(student) {
@@ -2784,6 +2857,7 @@ function nameCell(student) {
 
 function artCell(student) {
   const cell = el('div');
+  if (!plattformOn() && student.art !== 'plattform') return cell;
   const isPlattform = student.art === 'plattform';
   cell.append(el('span', isPlattform ? 'tag tag-plattform' : 'tag', isPlattform ? 'Plattform' : 'Privat'));
   return cell;
@@ -3168,6 +3242,19 @@ settingsForm.addEventListener('submit', async (event) => {
   }
 });
 
+colorMain.addEventListener('input', () => applyTheme({ main: colorMain.value, second: colorSecond.value }));
+colorSecond.addEventListener('input', () => applyTheme({ main: colorMain.value, second: colorSecond.value }));
+colorMain.addEventListener('change', () => saveColors(colorMain.value, colorSecond.value));
+colorSecond.addEventListener('change', () => saveColors(colorMain.value, colorSecond.value));
+document.getElementById('color-reset').addEventListener('click', () => saveColors(DEFAULT_MAIN, DEFAULT_SECOND));
+
+plattformToggle.addEventListener('change', async () => {
+  await persist(() => {
+    data.settings.plattform = plattformToggle.checked;
+  });
+  renderPlattformSettings();
+});
+
 backupNowBtn.addEventListener('click', async () => {
   try {
     await renderBackupInfo(await window.api.backupNow());
@@ -3186,10 +3273,14 @@ document.getElementById('backup-open').addEventListener('click', async () => {
 });
 
 document.getElementById('backup-choose').addEventListener('click', async () => {
-  const folder = await window.api.chooseBackupFolder();
-  if (!folder) return;
+  const result = await window.api.chooseBackupFolder();
+  if (!result) return;
+  if (result.error) {
+    showAlert(result.error);
+    return;
+  }
   const saved = await persist(() => {
-    data.settings.backupOrdner = folder;
+    data.settings.backupOrdner = result.folder;
   });
   if (saved) renderBackupInfo(await window.api.backupNow());
 });
@@ -3512,6 +3603,7 @@ async function init() {
     });
   }
 
+  applyTheme();
   openOverview();
   refreshHolidays();
 }
