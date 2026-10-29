@@ -21,6 +21,9 @@ const eyebrow = document.querySelector('.eyebrow');
 const title = document.querySelector('h1');
 const newStudentBtn = document.getElementById('new-student-btn');
 const placeholderText = document.getElementById('placeholder-text');
+const todoBlock = document.getElementById('todo-block');
+const todoList = document.getElementById('todo-list');
+const overviewEmpty = document.getElementById('overview-empty');
 const form = document.getElementById('student-form');
 const regionLabel = document.getElementById('region-label');
 const regionSelect = document.getElementById('region-select');
@@ -58,6 +61,10 @@ const yearCalendar = document.getElementById('year-calendar');
 
 function startOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 function addDays(date, days) {
@@ -101,6 +108,10 @@ function shortMonth(date) {
 
 function longDate(date) {
   return date.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+function weekdayName(date) {
+  return date.toLocaleDateString('de-DE', { weekday: 'long' });
 }
 
 function schoolYearStart(date = new Date()) {
@@ -194,6 +205,17 @@ function lastLessonBefore(student, startDate) {
   return null;
 }
 
+function setHolidayStatus(ids, key, status) {
+  return persist(() => {
+    ids.forEach((id) => {
+      const target = data.students.find((s) => s.id === id);
+      target.ferien = target.ferien || {};
+      if (status) target.ferien[key] = status;
+      else delete target.ferien[key];
+    });
+  });
+}
+
 async function refreshHolidays() {
   const codes = [...new Set(activeStudents().map(studentCode).filter(Boolean))];
   if (codes.length === 0) return;
@@ -205,6 +227,7 @@ async function refreshHolidays() {
     holidayFailed = codes;
   }
   if (currentPage === 'holidays') renderHolidays();
+  if (currentPage === 'overview') renderOverview();
 }
 
 function setActiveNav(activeItem) {
@@ -222,8 +245,9 @@ function showPage(id) {
 function openOverview() {
   const now = new Date();
   eyebrow.textContent = `${greeting(now.getHours())}, Darleen`;
-  title.innerHTML = `${now.toLocaleDateString('de-DE', { weekday: 'long' })}, <em>${now.getDate()}.</em> ${monthName(now)}`;
+  title.innerHTML = `${weekdayName(now)}, <em>${now.getDate()}.</em> ${monthName(now)}`;
   showPage('overview');
+  renderOverview();
 }
 
 function openPlaceholder(name) {
@@ -283,6 +307,92 @@ function openForm(student = null) {
   }
   setActiveNav(studentsNav);
   showPage('student-form');
+}
+
+function holidayTodos() {
+  const today = startOfDay(new Date());
+  const todayKey = dayKey(today);
+  const groups = new Map();
+
+  activeStudents().forEach((student) => {
+    const list = studentHolidays(student);
+    if (!list) return;
+
+    list.forEach((holiday) => {
+      if (holiday.end < todayKey) return;
+      if (holidayStatus(student, holiday) !== 'offen') return;
+
+      const from = parseDay(holiday.start);
+      const lastLesson = lastLessonBefore(student, from);
+      const askFrom = lastLesson || addDays(from, -7);
+      if (today < askFrom) return;
+
+      const groupKey = `${studentCode(student)}|${holidayKey(holiday)}`;
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, { holiday, region: regionName(student), entries: [] });
+      }
+      groups.get(groupKey).entries.push({ student, lastLesson });
+    });
+  });
+
+  return [...groups.values()].sort((a, b) => a.holiday.start.localeCompare(b.holiday.start));
+}
+
+function lessonHint(lastLesson) {
+  if (!lastLesson) return 'kein Termin vorher';
+  const diff = dayDiff(startOfDay(new Date()), lastLesson);
+  if (diff === 0) return 'heute letzte Stunde';
+  if (diff < 0) return `letzte Stunde war am ${weekdayName(lastLesson)}`;
+  return `letzte Stunde am ${weekdayName(lastLesson)}`;
+}
+
+function statusButtons(ids, key) {
+  const actions = el('div', 'todo-actions');
+  [['weiter', 'Macht weiter'], ['pausiert', 'Pausiert']].forEach(([status, label]) => {
+    const btn = el('button', 'btn btn-small', label);
+    btn.addEventListener('click', async () => {
+      const saved = await setHolidayStatus(ids, key, status);
+      if (saved) renderOverview();
+    });
+    actions.append(btn);
+  });
+  return actions;
+}
+
+function todoCard(group) {
+  const { holiday, region, entries } = group;
+  const key = holidayKey(holiday);
+  const card = el('article', 'todo-card');
+
+  const kicker = el('div', 'eyebrow todo-kicker', 'Ferien · Wie geht es weiter?');
+  const heading = el('div', 'todo-title', `${holiday.name} `);
+  heading.append(el('em', null, region));
+  const dates = el('div', 'student-meta', `${longDate(parseDay(holiday.start))} bis ${longDate(parseDay(holiday.end))}`);
+
+  const rows = el('div', 'todo-rows');
+  entries.forEach(({ student, lastLesson }) => {
+    const row = el('div', 'todo-row');
+    const name = el('div', 'todo-name', fullName(student));
+    name.append(el('small', null, lessonHint(lastLesson)));
+    row.append(name, statusButtons([student.id], key));
+    rows.append(row);
+  });
+
+  if (entries.length > 1) {
+    const row = el('div', 'todo-row');
+    row.append(el('div', 'todo-name', 'Für alle'), statusButtons(entries.map((e) => e.student.id), key));
+    rows.append(row);
+  }
+
+  card.append(kicker, heading, dates, rows);
+  return card;
+}
+
+function renderOverview() {
+  const groups = holidayTodos();
+  todoList.replaceChildren(...groups.map(todoCard));
+  todoBlock.hidden = groups.length === 0;
+  overviewEmpty.hidden = groups.length > 0;
 }
 
 function fillSelect(select, options, withEmpty) {
@@ -502,10 +612,10 @@ function trackBackground(track, start, end, total) {
       track.append(week);
     }
   }
-  const today = new Date();
+  const today = startOfDay(new Date());
   if (today >= start && today < end) {
     const line = el('div', 'tl-today');
-    line.style.left = `${(dayDiff(start, new Date(today.getFullYear(), today.getMonth(), today.getDate())) / total) * 100}%`;
+    line.style.left = `${(dayDiff(start, today) / total) * 100}%`;
     track.append(line);
   }
 }
@@ -813,20 +923,11 @@ detailButtons.forEach((btn) => {
     const info = selectedInfo();
     if (!info) return;
     const { student, holiday } = info;
-    const key = holidayKey(holiday);
     const clicked = btn.dataset.status;
     const newStatus = holidayStatus(student, holiday) === clicked ? null : clicked;
     const ids = [student.id, ...(detailAll.checked ? sameRegion(student).map((s) => s.id) : [])];
 
-    const saved = await persist(() => {
-      ids.forEach((id) => {
-        const target = data.students.find((s) => s.id === id);
-        target.ferien = target.ferien || {};
-        if (newStatus) target.ferien[key] = newStatus;
-        else delete target.ferien[key];
-      });
-    });
-
+    const saved = await setHolidayStatus(ids, holidayKey(holiday), newStatus);
     if (saved) {
       renderTimeline();
       renderDetail();
