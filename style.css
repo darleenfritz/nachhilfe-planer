@@ -1776,3 +1776,7 @@ html, body {
 .income-col.current .income-bar{background:var(--pink)}
 .income-month{font-size:11px;color:var(--muted)}
 .income-col.current .income-month{color:var(--ink);font-weight:700}
+
+.wg-day-date{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wg-feiertag{color:var(--pink);font-weight:600}
+.wg-head.feiertag .wg-day-name{color:var(--pink)}

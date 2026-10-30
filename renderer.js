@@ -519,6 +519,16 @@ function studentHolidays(student) {
   return holidays[code] || [];
 }
 
+function feiertagFor(student, datum) {
+  const code = studentCode(student);
+  if (!code) return null;
+  return (feiertage[code] || []).find((f) => f.start <= datum && datum <= f.end) || null;
+}
+
+function feiertageOn(datum) {
+  return [...new Set(activeStudents().map((s) => feiertagFor(s, datum)).filter(Boolean).map((f) => f.name))];
+}
+
 function holidayKey(holiday) {
   return `${holiday.start}_${holiday.end}`;
 }
@@ -1595,7 +1605,7 @@ function todayLessons() {
         name: fullName(o.student),
         vorname: o.student.vorname,
         farbe: o.student.farbe,
-        meta: `${art} · ${o.dauer} Min${o.sonder ? ` · ${sonderNote(o.sonder)}` : ''}`,
+        meta: `${art} · ${o.dauer} Min${o.sonder ? ` · ${sonderNote(o.sonder)}` : ''}${feiertagFor(o.student, o.datum) ? ` · ${feiertagFor(o.student, o.datum).name}` : ''}`,
         kind,
         status,
       };
@@ -1878,7 +1888,10 @@ function weekLessons() {
       .filter((l) => l.kind === 'normal' || l.kind === 'extra')
       .forEach((l) => {
         const exam = examAfterLesson(l);
+        const feiertag = feiertagFor(l.student, l.datum);
+        if (feiertag) l.note = 'Feiertag';
         if (exam) l.note = examLabel(exam);
+        if (feiertag) l.feiertag = feiertag.name;
       });
   }
 
@@ -1983,7 +1996,7 @@ function lessonBlock(lesson) {
   box.style.setProperty('--c', lesson.student.farbe);
   box.style.top = `${gridY(top)}px`;
   box.style.height = `${gridY(bottom) - gridY(top)}px`;
-  box.title = `${fullName(lesson.student)}, ${formatTime(lesson.start)} Uhr, ${lesson.dauer} Minuten${lesson.note ? `, ${lesson.note}` : ''}`;
+  box.title = `${fullName(lesson.student)}, ${formatTime(lesson.start)} Uhr, ${lesson.dauer} Minuten${lesson.note ? `, ${lesson.note}` : ''}${lesson.feiertag ? `, ${lesson.feiertag}` : ''}`;
 
   const name = el('div', 'wg-lesson-name', lesson.student.vorname);
   if (lesson.record && lesson.record.status === 'stattgefunden') name.append(el('span', 'wg-check', '✓'));
@@ -2025,7 +2038,14 @@ function renderWeekGrid(lessons) {
     const head = el('div', 'wg-head');
     head.append(el('div', 'wg-day-name', DAYS[tag]));
     if (scheduleMode === 'real') {
-      head.append(el('div', 'wg-day-date', `${date.getDate()}. ${shortMonth(date)}`));
+      const dateLine = el('div', 'wg-day-date', `${date.getDate()}. ${shortMonth(date)}`);
+      const names = feiertageOn(dayKey(date));
+      if (names.length > 0) {
+        dateLine.append(el('span', 'wg-feiertag', ` · ${names.join(', ')}`));
+        dateLine.title = names.join(', ');
+        head.classList.add('feiertag');
+      }
+      head.append(dateLine);
       if (dayKey(date) === todayKey) head.classList.add('today');
     }
 
