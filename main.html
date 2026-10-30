@@ -429,7 +429,37 @@
           </fieldset>
 
           <fieldset class="form-section">
-            <legend class="section-title"><span class="num">III</span>Sicherung</legend>
+            <legend class="section-title"><span class="num">III</span>Farben</legend>
+            <p class="hint">Wähle die zwei knalligen Akzentfarben der App. Sie gelten sofort, auch im Fenster in der Menüleiste.</p>
+            <div class="color-presets" id="color-presets"></div>
+            <div class="color-row">
+              <label class="color-field">
+                <input type="color" id="color-main">
+                <span><strong>Hauptfarbe</strong><small>Akzente, Datum, Schatten</small></span>
+              </label>
+              <label class="color-field">
+                <input type="color" id="color-second">
+                <span><strong>Zweitfarbe</strong><small>Knöpfe, Tape, Markierungen</small></span>
+              </label>
+              <button type="button" class="btn btn-small" id="color-reset">Zurücksetzen</button>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend class="section-title"><span class="num">IV</span>Schülerarten</legend>
+            <label class="switch-row">
+              <input type="checkbox" id="plattform-toggle">
+              <span class="switch"></span>
+              <span class="switch-text">
+                <strong>Plattformschüler verwenden</strong>
+                <small>Für Schüler, die über eine Nachhilfe-Plattform kommen, mit Nachholstunden statt Rechnungen. Ausgeschaltet gibt es nur Privatschüler.</small>
+              </span>
+            </label>
+            <p class="hint" id="plattform-hint" hidden></p>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend class="section-title"><span class="num">V</span>Sicherung</legend>
             <p class="hint">Bei jeder Änderung legt die App eine Kopie deiner Daten an, eine Datei pro Tag. Die letzten 60 Tage bleiben erhalten.</p>
             <div class="backup-box">
               <div class="backup-status" id="backup-status"></div>
@@ -446,142 +476,192 @@
       </section>
 
       <section class="page" id="page-student-form" hidden>
-        <form class="form" id="student-form">
+        <div class="student-head" id="student-head">
+          <div class="student-tags" id="student-tags"></div>
+          <button type="button" class="btn btn-small btn-archive" id="archive-btn" hidden>Archivieren</button>
+        </div>
 
-          <fieldset class="form-section">
-            <legend class="section-title"><span class="num">I</span>Person</legend>
-            <div class="field-row">
-              <label class="field">
-                <span class="label">Vorname</span>
-                <input type="text" name="vorname" required>
-              </label>
-              <label class="field">
-                <span class="label">Nachname</span>
-                <input type="text" name="nachname">
-              </label>
-            </div>
-            <label class="field field-small">
-              <span class="label">Geburtstag <em>optional</em></span>
-              <input type="date" name="geburtstag">
-            </label>
-          </fieldset>
+        <div class="tabs" id="student-tabs">
+          <button type="button" class="tab" data-tab="overview">Überblick</button>
+          <button type="button" class="tab" data-tab="lessons">Stunden</button>
+          <button type="button" class="tab" data-tab="exams">Schulaufgaben<span class="tab-count" id="tab-count-exams" hidden></span></button>
+          <button type="button" class="tab" data-tab="nachhol" id="tab-nachhol">Nachholstunden<span class="tab-count" id="tab-count-nachhol" hidden></span></button>
+          <button type="button" class="tab" data-tab="edit">Bearbeiten</button>
+        </div>
 
-          <fieldset class="form-section">
-            <legend class="section-title"><span class="num">II</span>Schule</legend>
-            <div class="field">
-              <span class="label">Land</span>
-              <div class="choice">
-                <label><input type="radio" name="land" value="DE" checked><span>Deutschland</span></label>
-                <label><input type="radio" name="land" value="AT"><span>Österreich</span></label>
-                <label><input type="radio" name="land" value="CH"><span>Schweiz</span></label>
+        <div class="tab-panel" data-panel="overview">
+          <div class="profile-grid">
+            <div class="profile-col">
+              <div class="profile-card profile-main">
+                <div class="profile-card-head"><span class="profile-card-title">Steckbrief</span></div>
+                <dl class="profile-facts" id="profile-facts"></dl>
+              </div>
+              <div class="profile-card">
+                <div class="profile-card-head"><span class="profile-card-title">Regelmäßigkeit</span></div>
+                  <div class="reg-head">
+                    <div class="reg-value" id="reg-value"></div>
+                    <div class="view-switch">
+                      <button type="button" class="btn btn-small active" data-reg="3m">3 Monate</button>
+                      <button type="button" class="btn btn-small" data-reg="jahr">Schuljahr</button>
+                    </div>
+                  </div>
+                  <div class="reg-dots" id="reg-dots"></div>
+                  <div class="legend reg-legend">
+                    <span><span class="reg-dot da"></span>stattgefunden</span>
+                    <span><span class="reg-dot weg"></span>vom Schüler abgesagt</span>
+                    <span><span class="reg-dot ferien"></span>Ferien pausiert</span>
+                    <span><span class="reg-dot offen"></span>noch nicht bestätigt</span>
+                  </div>
+                  <p class="hint" id="reg-note"></p>
               </div>
             </div>
-            <div class="field-row">
-              <label class="field">
-                <span class="label"><span id="region-label">Bundesland</span> <em>optional</em></span>
-                <select name="region" id="region-select"></select>
-              </label>
-              <label class="field">
-                <span class="label">Schulform</span>
-                <select name="schulform" id="schulform-select"></select>
-              </label>
-              <label class="field field-small">
-                <span class="label">Klasse</span>
-                <input type="number" name="klasse" min="1" max="13">
-              </label>
-            </div>
-          </fieldset>
-
-          <fieldset class="form-section">
-            <legend class="section-title"><span class="num">III</span>Unterricht</legend>
-            <div class="field">
-              <span class="label">Art</span>
-              <div class="choice">
-                <label><input type="radio" name="art" value="privat" checked><span>Privat</span></label>
-                <label><input type="radio" name="art" value="plattform"><span>Plattform</span></label>
-              </div>
-            </div>
-
-            <div id="privat-fields">
-              <div class="field">
-                <span class="label">Standardlänge</span>
-                <div class="choice">
-                  <label><input type="radio" name="dauer" value="30"><span>30 Min</span></label>
-                  <label><input type="radio" name="dauer" value="45"><span>45 Min</span></label>
-                  <label><input type="radio" name="dauer" value="50" checked><span>50 Min</span></label>
-                  <label><input type="radio" name="dauer" value="60"><span>60 Min</span></label>
+            <div class="profile-col">
+              <div class="profile-card accent-main">
+                <div class="profile-card-head">
+                  <span class="profile-card-title">Schulaufgaben</span>
+                  <button type="button" class="btn btn-small" id="profile-exam-add">+ Neu</button>
                 </div>
-                <div class="price-preview" id="price-preview"></div>
+                <div class="exam-list" id="profile-exams"></div>
+                <button type="button" class="profile-more" data-goto="exams">Alle Schulaufgaben →</button>
               </div>
-              <label class="field">
-                <span class="label">Rechnung an</span>
-                <input type="text" name="rechnungAn" placeholder="z. B. Vorname der Mutter">
-              </label>
-            </div>
-
-            <div id="plattform-fields" hidden>
-              <p class="hint">Plattform-Stunden dauern immer 45 Minuten.</p>
-              <label class="field field-medium">
-                <span class="label">Nachholstunden beim Anlegen</span>
-                <input type="number" name="nachholStart" min="0" value="0">
-              </label>
-            </div>
-          </fieldset>
-
-          <fieldset class="form-section">
-            <legend class="section-title"><span class="num">IV</span>Termine</legend>
-            <div id="termine"></div>
-            <button type="button" class="btn" id="add-termin">+ weiterer Termin</button>
-          </fieldset>
-
-          <fieldset class="form-section" id="regular-section" hidden>
-            <legend class="section-title"><span class="num">V</span>Regelmäßigkeit</legend>
-            <div class="reg-head">
-              <div class="reg-value" id="reg-value"></div>
-              <div class="view-switch">
-                <button type="button" class="btn btn-small active" data-reg="3m">3 Monate</button>
-                <button type="button" class="btn btn-small" data-reg="jahr">Schuljahr</button>
+              <div class="profile-card accent-second" id="profile-nachhol-card">
+                <div class="profile-card-head">
+                  <span class="profile-card-title">Nachholstunden</span>
+                  <div class="todo-actions">
+                    <button type="button" class="btn btn-small" data-nachhol="-1">−1</button>
+                    <button type="button" class="btn btn-small" data-nachhol="1">+1</button>
+                  </div>
+                </div>
+                <div class="profile-nachhol" id="profile-nachhol"></div>
+                <button type="button" class="profile-more" data-goto="nachhol">Ganzer Verlauf →</button>
+              </div>
+              <div class="profile-card accent-second" id="profile-lessons-card">
+                <div class="profile-card-head">
+                  <span class="profile-card-title">Stunden</span>
+                  <span class="student-meta" id="profile-month"></span>
+                </div>
+                <div id="profile-lessons"></div>
+                <button type="button" class="profile-more" data-goto="lessons">Alle Stunden →</button>
               </div>
             </div>
-            <div class="reg-dots" id="reg-dots"></div>
-            <div class="legend reg-legend">
-              <span><span class="reg-dot da"></span>stattgefunden</span>
-              <span><span class="reg-dot weg"></span>vom Schüler abgesagt</span>
-              <span><span class="reg-dot ferien"></span>Ferien pausiert</span>
-              <span><span class="reg-dot offen"></span>noch nicht bestätigt</span>
-            </div>
-            <p class="hint" id="reg-note"></p>
-          </fieldset>
-
-          <fieldset class="form-section" id="exam-section" hidden>
-            <legend class="section-title"><span class="num">VI</span>Schulaufgaben</legend>
-            <div class="exam-list" id="student-exams"></div>
-            <button type="button" class="btn" id="student-exam-add">+ Schulaufgabe</button>
-          </fieldset>
-
-          <fieldset class="form-section" id="history-section" hidden>
-            <legend class="section-title"><span class="num">VII</span>Stunden</legend>
-            <div id="lesson-history"></div>
-          </fieldset>
-
-          <fieldset class="form-section" id="nachhol-section" hidden>
-            <legend class="section-title"><span class="num">VIII</span>Nachholstunden</legend>
-            <div class="nachhol-head">
-              <div class="nachhol-count" id="nachhol-count"></div>
-              <div class="todo-actions">
-                <button type="button" class="btn btn-small" id="nachhol-minus">−1</button>
-                <button type="button" class="btn btn-small" id="nachhol-plus">+1</button>
-              </div>
-            </div>
-            <div id="nachhol-history"></div>
-          </fieldset>
-
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Speichern</button>
-            <button type="button" class="btn" id="cancel-form">Abbrechen</button>
-            <button type="button" class="btn btn-archive" id="archive-btn" hidden>Archivieren</button>
           </div>
-        </form>
+        </div>
+
+        <div class="tab-panel" data-panel="lessons">
+          <div id="lesson-history"></div>
+        </div>
+
+        <div class="tab-panel" data-panel="exams">
+          <div class="exam-list" id="student-exams"></div>
+          <button type="button" class="btn" id="student-exam-add">+ Schulaufgabe</button>
+        </div>
+
+        <div class="tab-panel" data-panel="nachhol">
+          <div class="nachhol-head">
+            <div class="nachhol-count" id="nachhol-count"></div>
+            <div class="todo-actions">
+              <button type="button" class="btn btn-small" data-nachhol="-1">−1</button>
+              <button type="button" class="btn btn-small" data-nachhol="1">+1</button>
+            </div>
+          </div>
+          <div id="nachhol-history"></div>
+        </div>
+
+        <div class="tab-panel" data-panel="edit">
+          <form class="form" id="student-form">
+
+            <fieldset class="form-section">
+              <legend class="section-title">Person</legend>
+              <div class="field-row">
+                <label class="field">
+                  <span class="label">Vorname</span>
+                  <input type="text" name="vorname" required>
+                </label>
+                <label class="field">
+                  <span class="label">Nachname</span>
+                  <input type="text" name="nachname">
+                </label>
+              </div>
+              <label class="field field-small">
+                <span class="label">Geburtstag <em>optional</em></span>
+                <input type="date" name="geburtstag">
+              </label>
+            </fieldset>
+
+            <fieldset class="form-section">
+              <legend class="section-title">Schule</legend>
+              <div class="field">
+                <span class="label">Land</span>
+                <div class="choice">
+                  <label><input type="radio" name="land" value="DE" checked><span>Deutschland</span></label>
+                  <label><input type="radio" name="land" value="AT"><span>Österreich</span></label>
+                  <label><input type="radio" name="land" value="CH"><span>Schweiz</span></label>
+                </div>
+              </div>
+              <div class="field-row">
+                <label class="field">
+                  <span class="label"><span id="region-label">Bundesland</span> <em>optional</em></span>
+                  <select name="region" id="region-select"></select>
+                </label>
+                <label class="field">
+                  <span class="label">Schulform</span>
+                  <select name="schulform" id="schulform-select"></select>
+                </label>
+                <label class="field field-small">
+                  <span class="label">Klasse</span>
+                  <input type="number" name="klasse" min="1" max="13">
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="form-section">
+              <legend class="section-title">Unterricht</legend>
+              <div class="field" id="art-field">
+                <span class="label">Art</span>
+                <div class="choice">
+                  <label><input type="radio" name="art" value="privat" checked><span>Privat</span></label>
+                  <label><input type="radio" name="art" value="plattform"><span>Plattform</span></label>
+                </div>
+              </div>
+
+              <div id="privat-fields">
+                <div class="field">
+                  <span class="label">Standardlänge</span>
+                  <div class="choice">
+                    <label><input type="radio" name="dauer" value="30"><span>30 Min</span></label>
+                    <label><input type="radio" name="dauer" value="45"><span>45 Min</span></label>
+                    <label><input type="radio" name="dauer" value="50" checked><span>50 Min</span></label>
+                    <label><input type="radio" name="dauer" value="60"><span>60 Min</span></label>
+                  </div>
+                  <div class="price-preview" id="price-preview"></div>
+                </div>
+                <label class="field">
+                  <span class="label">Rechnung an</span>
+                  <input type="text" name="rechnungAn" placeholder="z. B. Vorname der Mutter">
+                </label>
+              </div>
+
+              <div id="plattform-fields" hidden>
+                <p class="hint">Plattform-Stunden dauern immer 45 Minuten.</p>
+                <label class="field field-medium">
+                  <span class="label">Nachholstunden beim Anlegen</span>
+                  <input type="number" name="nachholStart" min="0" value="0">
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="form-section">
+              <legend class="section-title">Termine</legend>
+              <div id="termine"></div>
+              <button type="button" class="btn" id="add-termin">+ weiterer Termin</button>
+            </fieldset>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Speichern</button>
+              <button type="button" class="btn" id="cancel-form">Abbrechen</button>
+            </div>
+          </form>
+        </div>
       </section>
     </main>
   </div>

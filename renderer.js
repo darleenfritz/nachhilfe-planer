@@ -45,6 +45,7 @@ let moving = false;
 let invoiceFilter = 'alle';
 let selectedInvoice = null;
 let regRange = '3m';
+let studentTab = 'overview';
 let examFormOpen = false;
 let editingExamId = null;
 let examFiles = [];
@@ -109,7 +110,6 @@ const classFilter = document.getElementById('class-filter');
 const tagFilter = document.getElementById('tag-filter');
 const taskCount = document.getElementById('task-count');
 const taskList = document.getElementById('task-list');
-const examSection = document.getElementById('exam-section');
 const studentExams = document.getElementById('student-exams');
 const tileBirthdayList = document.getElementById('tile-birthday-list');
 const form = document.getElementById('student-form');
@@ -121,18 +121,27 @@ const plattformFields = document.getElementById('plattform-fields');
 const pricePreview = document.getElementById('price-preview');
 const termine = document.getElementById('termine');
 const terminTemplate = document.getElementById('termin-template');
-const historySection = document.getElementById('history-section');
-const regularSection = document.getElementById('regular-section');
+const studentTags = document.getElementById('student-tags');
+const studentTabButtons = document.querySelectorAll('[data-tab]');
+const studentPanels = document.querySelectorAll('[data-panel]');
+const studentTabsBar = document.getElementById('student-tabs');
+const tabNachhol = document.getElementById('tab-nachhol');
+const tabCountExams = document.getElementById('tab-count-exams');
+const tabCountNachhol = document.getElementById('tab-count-nachhol');
+const profileFacts = document.getElementById('profile-facts');
+const profileExams = document.getElementById('profile-exams');
+const profileNachholCard = document.getElementById('profile-nachhol-card');
+const profileNachhol = document.getElementById('profile-nachhol');
+const profileLessonsCard = document.getElementById('profile-lessons-card');
+const profileLessons = document.getElementById('profile-lessons');
+const profileMonth = document.getElementById('profile-month');
 const regValue = document.getElementById('reg-value');
 const regDots = document.getElementById('reg-dots');
 const regNote = document.getElementById('reg-note');
 const regButtons = document.querySelectorAll('[data-reg]');
 const lessonHistory = document.getElementById('lesson-history');
-const nachholSection = document.getElementById('nachhol-section');
 const nachholCount = document.getElementById('nachhol-count');
 const nachholHistory = document.getElementById('nachhol-history');
-const nachholMinus = document.getElementById('nachhol-minus');
-const nachholPlus = document.getElementById('nachhol-plus');
 const studentList = document.getElementById('student-list');
 const studentsEmpty = document.getElementById('students-empty');
 const archiveList = document.getElementById('archive-list');
@@ -1061,6 +1070,10 @@ async function refreshHolidays() {
   if (currentPage === 'holidays') renderHolidays();
   if (currentPage === 'overview') renderOverview();
   if (currentPage === 'students') renderStudents();
+  if (currentPage === 'student-form' && editingId) {
+    const current = data.students.find((st) => st.id === editingId);
+    if (current) renderStudentProfile(current);
+  }
   if (currentPage === 'schedule') renderSchedule();
   publishSummary();
 }
@@ -1185,26 +1198,137 @@ async function renderBackupInfo(info = null) {
   }
 }
 
-function openForm(student = null) {
+function showStudentTab(tab) {
+  studentTab = tab;
+  studentTabButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
+  studentPanels.forEach((panel) => {
+    panel.hidden = panel.dataset.panel !== tab;
+  });
+}
+
+function birthdayInfo(student) {
+  if (!student.geburtstag) return null;
+  const today = startOfDay(new Date());
+  const born = parseDay(student.geburtstag);
+  let next = new Date(today.getFullYear(), born.getMonth(), born.getDate());
+  if (next < today) next = new Date(today.getFullYear() + 1, born.getMonth(), born.getDate());
+  const age = next.getFullYear() - born.getFullYear() - (dayDiff(today, next) === 0 ? 0 : 1);
+  return { born, next, days: dayDiff(today, next), age, nextAge: next.getFullYear() - born.getFullYear() };
+}
+
+function fact(label, value) {
+  return [el('dt', null, label), el('dd', null, value)];
+}
+
+function renderStudentProfile(student) {
+  const isPlattform = student.art === 'plattform';
+  const birthday = birthdayInfo(student);
+  const upcoming = upcomingExams().filter((e) => e.studentId === student.id);
+
+  const tags = [el('span', isPlattform ? 'tag tag-plattform' : 'tag', isPlattform ? 'Plattform' : 'Privat')];
+  if (birthday && birthday.days <= 14) {
+    tags.push(el('span', 'tag tag-accent', birthday.days === 0 ? `Hat heute Geburtstag, ${birthday.nextAge}!` : `Geburtstag ${countdownText(birthday.days)}`));
+  }
+  if (upcoming[0] && daysUntil(upcoming[0]) <= 14) {
+    tags.push(el('span', 'tag tag-accent', `${upcoming[0].art} ${countdownText(daysUntil(upcoming[0]))}`));
+  }
+  const pause = pauseNote(student);
+  if (pause) tags.push(el('span', 'tag', pause));
+  studentTags.replaceChildren(...tags);
+
+  const facts = [];
+  facts.push(...fact('Schule', [student.klasse ? `Klasse ${student.klasse}` : null, student.schulform].filter(Boolean).join(' · ')));
+  facts.push(...fact(LAENDER[student.land].regionLabel, regionName(student)));
+  if (birthday) {
+    const d = birthday.born;
+    facts.push(...fact('Geburtstag', `${d.getDate()}. ${monthName(d)} ${d.getFullYear()} · ${birthday.age} Jahre`));
+  }
+  facts.push(...fact('Termine', student.termine.length > 0 ? student.termine.map((t) => `${DAYS[t.tag]} ${t.zeit}`).join(' · ') : 'keine festen Termine'));
+  if (isPlattform) {
+    facts.push(...fact('Unterricht', `Plattform · ${student.dauer} Min`));
+    facts.push(...fact('Nachholen', `${nachholStand(student)} ${nachholStand(student) === 1 ? 'Stunde' : 'Stunden'}`));
+  } else {
+    facts.push(...fact('Unterricht', `${student.dauer} Min · ${formatEuro(priceFor(student.dauer))}`));
+    if (student.rechnungAn) facts.push(...fact('Rechnung an', student.rechnungAn));
+  }
+  if (student.angelegt) facts.push(...fact('Dabei seit', formatDate(student.angelegt)));
+  profileFacts.replaceChildren(...facts);
+
+  const past = pastExams().filter((e) => e.studentId === student.id);
+  const examItems = [...upcoming, ...past.slice(0, Math.max(1, 4 - upcoming.length))].slice(0, 4);
+  profileExams.replaceChildren(...(examItems.length === 0
+    ? [el('div', 'history-empty', 'Noch keine Schulaufgaben eingetragen.')]
+    : examItems.map((e) => examRow(e, false))));
+
+  profileNachholCard.hidden = !isPlattform;
+  profileLessonsCard.hidden = isPlattform;
+  tabNachhol.hidden = !isPlattform;
+
+  if (isPlattform) {
+    const stand = nachholStand(student);
+    const count = el('div', 'nachhol-count', String(stand));
+    count.append(el('small', null, stand === 1 ? 'Stunde nachzuholen' : 'Stunden nachzuholen'));
+    const events = nachholEvents(student).slice(0, 3).map((event) => {
+      const row = el('div', 'nachhol-row');
+      row.append(
+        el('span', `nachhol-delta ${event.delta > 0 ? 'plus' : 'minus'}`, `${event.delta > 0 ? '+' : '−'}${Math.abs(event.delta)}`),
+        el('span', 'history-date', shortDate(parseDay(event.datum))),
+        el('span', null, event.text),
+      );
+      return row;
+    });
+    profileNachhol.replaceChildren(count, ...events);
+  } else {
+    const records = stunden()
+      .filter((r) => r.studentId === student.id)
+      .sort((a, b) => b.datum.localeCompare(a.datum) || b.zeit.localeCompare(a.zeit));
+    profileLessons.replaceChildren(...(records.length === 0
+      ? [el('div', 'history-empty', 'Noch keine Stunden erfasst.')]
+      : records.slice(0, 5).map((r) => {
+        const row = el('div', 'profile-lesson');
+        let text = [`${r.dauer} Min`, r.thema].filter(Boolean).join(' · ');
+        if (r.status === 'ausgefallen') text = cancelText(r);
+        row.append(
+          el('span', 'history-date', shortDate(parseDay(r.datum)).replace(/ \d{4}$/, '')),
+          el('span', r.status === 'ausgefallen' ? 'profile-lesson-text cancelled' : 'profile-lesson-text', text),
+          el('span', 'history-price', r.preis ? formatEuro(r.preis) : ''),
+        );
+        return row;
+      })));
+    const month = monthKey(new Date());
+    const cents = records.filter((r) => r.datum.startsWith(month) && isBillable(r)).reduce((sum, r) => sum + toCents(r.preis), 0);
+    profileMonth.textContent = `${monthName(new Date())} · ${formatEuro(cents / 100)}`;
+  }
+
+  tabCountExams.hidden = upcoming.length === 0;
+  tabCountExams.textContent = String(upcoming.length);
+  const stand = isPlattform ? nachholStand(student) : 0;
+  tabCountNachhol.hidden = stand <= 0;
+  tabCountNachhol.textContent = String(stand);
+
+  renderRegularity(student);
+  renderHistory(student);
+  renderStudentExams(student);
+  if (isPlattform) renderNachhol(student);
+}
+
+function openForm(student = null, tab = 'overview') {
   resetForm();
   editingId = student ? student.id : null;
   archiveBtn.hidden = !student;
-  historySection.hidden = !student;
-  regularSection.hidden = !student;
-  examSection.hidden = !student;
+  studentTabsBar.hidden = !student;
+  studentTags.hidden = !student;
   if (student && student.art === 'plattform') artField.hidden = false;
-  nachholSection.hidden = !student || student.art !== 'plattform';
   if (student) {
     fillForm(student);
-    renderHistory(student);
-    renderRegularity(student);
-    renderStudentExams(student);
-    if (student.art === 'plattform') renderNachhol(student);
-    eyebrow.textContent = 'Schüler bearbeiten';
-    title.textContent = `${student.vorname}.`;
+    renderStudentProfile(student);
+    eyebrow.textContent = 'Schüler';
+    title.replaceChildren(`${student.vorname} `, el('em', null, student.nachname || ''));
+    showStudentTab(tab);
   } else {
     eyebrow.textContent = 'Schüler anlegen';
     title.innerHTML = 'Neuer <em>Schüler.</em>';
+    showStudentTab('edit');
   }
   setActiveNav(studentsNav);
   showPage('student-form');
@@ -2732,7 +2856,7 @@ async function addNachholKorrektur(delta) {
       delta,
     }];
   });
-  if (saved) renderNachhol(data.students.find((s) => s.id === editingId));
+  if (saved) renderStudentProfile(data.students.find((s) => s.id === editingId));
 }
 
 function fillSelect(select, options, withEmpty) {
@@ -3162,10 +3286,28 @@ navItems.forEach((item) => {
 
 newStudentBtn.addEventListener('click', () => openForm());
 document.getElementById('add-termin').addEventListener('click', () => addTermin());
-nachholMinus.addEventListener('click', () => addNachholKorrektur(-1));
-nachholPlus.addEventListener('click', () => addNachholKorrektur(1));
+document.querySelectorAll('[data-nachhol]').forEach((btn) => {
+  btn.addEventListener('click', () => addNachholKorrektur(Number(btn.dataset.nachhol)));
+});
+
+studentTabButtons.forEach((btn) => {
+  btn.addEventListener('click', () => showStudentTab(btn.dataset.tab));
+});
+
+document.querySelectorAll('[data-goto]').forEach((btn) => {
+  btn.addEventListener('click', () => showStudentTab(btn.dataset.goto));
+});
+
+document.getElementById('profile-exam-add').addEventListener('click', () => {
+  if (editingId) openExamForm(null, editingId);
+});
 
 document.getElementById('cancel-form').addEventListener('click', () => {
+  const student = data.students.find((s) => s.id === editingId);
+  if (student) {
+    openForm(student, 'overview');
+    return;
+  }
   setActiveNav(studentsNav);
   openStudents();
 });
@@ -3213,8 +3355,12 @@ form.addEventListener('submit', async (event) => {
   });
 
   if (saved) {
-    setActiveNav(studentsNav);
-    openStudents();
+    const student = data.students.find((s) => s.id === editingId);
+    if (student) openForm(student, 'overview');
+    else {
+      setActiveNav(studentsNav);
+      openStudents();
+    }
     refreshHolidays();
   }
 });

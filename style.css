@@ -1709,3 +1709,38 @@ html, body {
   top: 0;
   left: 0;
 }
+
+.student-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-6px 0 18px}
+.student-tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag-accent{border-color:var(--pink);color:var(--pink)}
+.tabs{display:flex;flex-wrap:wrap;border-bottom:1.5px solid var(--ink);margin-bottom:20px}
+.tab{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;margin-bottom:-1.5px;border:1.5px solid transparent;border-bottom:none;border-radius:10px 10px 0 0;background:none;font-family:var(--sans);font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
+.tab:hover{color:var(--ink)}
+.tab.active{color:var(--ink);background:var(--card);border-color:var(--ink)}
+.tab[hidden]{display:none}
+.tab-count{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:999px;background:var(--pink);color:var(--paper);font-size:10px;font-weight:700}
+.tab-count[hidden]{display:none}
+.tab-panel[hidden]{display:none}
+.profile-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:16px;align-items:start}
+.profile-col{display:flex;flex-direction:column;gap:16px}
+.profile-card{background:var(--card);border:1px solid var(--ink);padding:16px 18px}
+.profile-card[hidden]{display:none}
+.profile-main{box-shadow:4px 4px 0 var(--ink)}
+.accent-main{border-top:6px solid var(--pink)}
+.accent-second{border-top:6px solid var(--lime)}
+.profile-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.profile-card-title{font-family:var(--serif);font-size:26px;line-height:1.1}
+.profile-facts{display:grid;grid-template-columns:110px minmax(0,1fr);gap:7px 12px;margin:0;font-size:13px}
+.profile-facts dt{color:var(--muted)}
+.profile-facts dd{margin:0;font-weight:600}
+.profile-card .exam-list{border-top:none;margin-bottom:0}
+.profile-card .reg-value{font-size:46px}
+.profile-card .reg-legend{font-size:11px}
+.profile-lesson{display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
+.profile-lesson:last-child{border-bottom:none}
+.profile-lesson-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.profile-lesson-text.cancelled{color:var(--pink)}
+.profile-nachhol .nachhol-count{margin-bottom:8px}
+.profile-more{margin-top:10px;padding:0;border:none;background:none;font-family:var(--sans);font-size:12px;font-weight:600;color:var(--ink);cursor:pointer;text-decoration:underline;text-decoration-color:var(--pink);text-underline-offset:3px}
+.profile-card .hint{margin:8px 0 0;font-size:13px;line-height:1.4}
+.profile-card .reg-head{margin-bottom:8px}
