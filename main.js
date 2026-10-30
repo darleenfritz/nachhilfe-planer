@@ -5,6 +5,7 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain, dialog, sh
 const POPOVER_WIDTH = 380;
 const POPOVER_HEIGHT = 560;
 const HOLIDAY_API = 'https://openholidaysapi.org/SchoolHolidays';
+const PUBLIC_HOLIDAY_API = 'https://openholidaysapi.org/PublicHolidays';
 const ONE_DAY = 24 * 60 * 60 * 1000;
 const ONE_HOUR = 60 * 60 * 1000;
 const KEEP_BACKUPS = 60;
@@ -134,9 +135,9 @@ function readHolidayCache() {
   }
 }
 
-async function fetchRegion(code) {
+async function fetchRegion(code, api = HOLIDAY_API) {
   const year = new Date().getFullYear();
-  const url = new URL(HOLIDAY_API);
+  const url = new URL(api);
   url.searchParams.set('countryIsoCode', code.slice(0, 2));
   url.searchParams.set('subdivisionCode', code);
   url.searchParams.set('languageIsoCode', 'DE');
@@ -162,10 +163,14 @@ async function loadHolidays(codes) {
 
   for (const code of codes) {
     const entry = cache.regions[code];
-    const isFresh = entry && Date.now() - new Date(entry.fetchedAt).getTime() < ONE_DAY;
+    const isFresh = entry && entry.feiertage && Date.now() - new Date(entry.fetchedAt).getTime() < ONE_DAY;
     if (isFresh) continue;
     try {
-      cache.regions[code] = { fetchedAt: new Date().toISOString(), holidays: await fetchRegion(code) };
+      cache.regions[code] = {
+        fetchedAt: new Date().toISOString(),
+        holidays: await fetchRegion(code),
+        feiertage: await fetchRegion(code, PUBLIC_HOLIDAY_API),
+      };
       changed = true;
     } catch (error) {
       failed.push(code);
@@ -175,10 +180,12 @@ async function loadHolidays(codes) {
   if (changed) writeJson(holidayFile(), cache);
 
   const holidays = {};
+  const feiertage = {};
   for (const code of codes) {
     holidays[code] = cache.regions[code] ? cache.regions[code].holidays : null;
+    feiertage[code] = cache.regions[code] ? cache.regions[code].feiertage || [] : [];
   }
-  return { holidays, failed };
+  return { holidays, feiertage, failed };
 }
 
 function attachDir() {

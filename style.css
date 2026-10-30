@@ -1744,3 +1744,35 @@ html, body {
 .profile-more{margin-top:10px;padding:0;border:none;background:none;font-family:var(--sans);font-size:12px;font-weight:600;color:var(--ink);cursor:pointer;text-decoration:underline;text-decoration-color:var(--pink);text-underline-offset:3px}
 .profile-card .hint{margin:8px 0 0;font-size:13px;line-height:1.4}
 .profile-card .reg-head{margin-bottom:8px}
+
+.block-title .num,
+.section-title .num {
+  display: none;
+}
+
+.cal-days{column-gap:0 !important}
+.cal-day{padding-left:0 !important;padding-right:0 !important}
+.cal-lines{display:flex;flex-direction:column;gap:3px;width:100%;margin-top:4px}
+.cal-line{display:block;width:100%;height:5px}
+.cal-line.on{background:var(--c)}
+.cal-num.feiertag{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--c);font-weight:700;cursor:default}
+.calendar-legend{display:flex;flex-wrap:wrap;gap:8px 18px}
+.cal-legend-item{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.cal-legend-item strong{color:var(--ink);font-weight:600}
+.cal-legend-line{display:inline-block;width:18px;height:5px}
+.cal-legend-feiertag{display:inline-block;width:14px;height:14px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--ink)}
+.holiday-toolbar .legend[hidden]{display:none}
+
+.income-box{border:1px solid var(--ink);background:var(--card);padding:14px 18px 12px;margin-bottom:22px}
+.income-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.year-switch{display:flex;align-items:center;gap:10px}
+.year-label{font-family:var(--serif);font-size:26px;min-width:56px;text-align:center}
+.year-switch .btn:disabled{opacity:.3;cursor:default}
+.income-chart{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px;align-items:end}
+.income-col{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.income-value{height:16px;font-size:11px;font-weight:600;white-space:nowrap}
+.income-track{position:relative;width:100%;height:90px;border-bottom:1px solid var(--ink)}
+.income-bar{position:absolute;left:18%;right:18%;bottom:0;background:var(--ink);transition:height .2s}
+.income-col.current .income-bar{background:var(--pink)}
+.income-month{font-size:11px;color:var(--muted)}
+.income-col.current .income-month{color:var(--ink);font-weight:700}

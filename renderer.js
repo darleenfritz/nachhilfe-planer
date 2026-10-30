@@ -32,6 +32,7 @@ let copyTimer = null;
 let currentPage = 'overview';
 let holidays = {};
 let holidayFailed = [];
+let feiertage = {};
 let holidayView = 'rows';
 let rangeStart = startOfMonth(new Date());
 let selected = null;
@@ -44,6 +45,7 @@ let extraOpen = false;
 let moving = false;
 let invoiceFilter = 'alle';
 let selectedInvoice = null;
+let invoiceYear = new Date().getFullYear();
 let regRange = '3m';
 let studentTab = 'overview';
 let examFormOpen = false;
@@ -209,6 +211,10 @@ const statVerschickt = document.getElementById('stat-verschickt');
 const statBezahlt = document.getElementById('stat-bezahlt');
 const statYear = document.getElementById('stat-year');
 const filterButtons = document.querySelectorAll('[data-filter]');
+const incomeChart = document.getElementById('income-chart');
+const yearLabel = document.getElementById('year-label');
+const yearPrev = document.getElementById('year-prev');
+const yearNext = document.getElementById('year-next');
 
 function startOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -1063,6 +1069,7 @@ async function refreshHolidays() {
   try {
     const result = await window.api.loadHolidays(codes);
     holidays = result.holidays;
+    feiertage = result.feiertage || {};
     holidayFailed = result.failed;
   } catch (error) {
     holidayFailed = codes;
@@ -2302,19 +2309,59 @@ function invoiceRow(inv) {
   return row;
 }
 
+function paidDate(inv) {
+  return inv.status === 'bezahlt' && inv.saved && inv.saved.bezahltAm ? new Date(inv.saved.bezahltAm) : null;
+}
+
+function invoiceYears(list) {
+  const current = new Date().getFullYear();
+  const years = list.flatMap((inv) => [Number(inv.monat.slice(0, 4)), paidDate(inv) ? paidDate(inv).getFullYear() : current]);
+  return { min: Math.min(current, ...years), max: current };
+}
+
+function renderIncomeChart(list) {
+  const months = Array.from({ length: 12 }, () => 0);
+  list.forEach((inv) => {
+    const paid = paidDate(inv);
+    if (paid && paid.getFullYear() === invoiceYear) months[paid.getMonth()] += inv.cents;
+  });
+  const max = Math.max(...months, 1);
+  const now = new Date();
+  incomeChart.replaceChildren(...months.map((cents, index) => {
+    const col = el('div', 'income-col');
+    if (invoiceYear === now.getFullYear() && index === now.getMonth()) col.classList.add('current');
+    const date = new Date(invoiceYear, index, 1);
+    col.title = `${monthName(date)} ${invoiceYear}: ${formatEuro(cents / 100)}`;
+    const value = el('span', 'income-value', cents > 0 ? formatEuro(Math.round(cents / 100)).replace(',00', '') : '');
+    const track = el('div', 'income-track');
+    const bar = el('div', 'income-bar');
+    bar.style.height = `${(cents / max) * 100}%`;
+    track.append(bar);
+    col.append(value, track, el('span', 'income-month', shortMonth(date)));
+    return col;
+  }));
+}
+
 function renderInvoices() {
   const list = allInvoices();
-  const year = new Date().getFullYear();
   const sum = (items) => formatEuro(items.reduce((total, inv) => total + inv.cents, 0) / 100);
+  const range = invoiceYears(list);
+  invoiceYear = Math.min(Math.max(invoiceYear, range.min), range.max);
 
   statOffen.textContent = sum(list.filter((inv) => inv.status === 'offen'));
   statVerschickt.textContent = sum(list.filter((inv) => inv.status === 'verschickt'));
-  statBezahlt.textContent = sum(list.filter((inv) => inv.status === 'bezahlt' && inv.saved.bezahltAm && new Date(inv.saved.bezahltAm).getFullYear() === year));
-  statYear.textContent = String(year);
+  statBezahlt.textContent = sum(list.filter((inv) => paidDate(inv) && paidDate(inv).getFullYear() === invoiceYear));
+  statYear.textContent = String(invoiceYear);
+  yearLabel.textContent = String(invoiceYear);
+  yearPrev.disabled = invoiceYear <= range.min;
+  yearNext.disabled = invoiceYear >= range.max;
+  renderIncomeChart(list);
 
   filterButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.filter === invoiceFilter));
 
-  const shown = list.filter((inv) => invoiceFilter === 'alle' || inv.status === invoiceFilter);
+  const shown = list
+    .filter((inv) => invoiceFilter === 'alle' || inv.status === invoiceFilter)
+    .filter((inv) => inv.monat.startsWith(String(invoiceYear)) || inv.status !== 'bezahlt' || (paidDate(inv) && paidDate(inv).getFullYear() === invoiceYear));
   const nodes = [];
   shown.forEach((inv) => {
     nodes.push(invoiceRow(inv));
@@ -2328,7 +2375,7 @@ function renderInvoices() {
   invoiceList.replaceChildren(...nodes);
   invoiceList.hidden = shown.length === 0;
   invoicesEmpty.hidden = shown.length > 0;
-  invoicesEmpty.textContent = list.length === 0 ? 'Noch keine Rechnungen. Sobald du Privatstunden bestätigst, erscheinen sie hier.' : 'Keine Rechnungen mit diesem Status.';
+  invoicesEmpty.textContent = list.length === 0 ? 'Noch keine Rechnungen. Sobald du Privatstunden bestätigst, erscheinen sie hier.' : `Keine passenden Rechnungen in ${invoiceYear}.`;
 }
 
 function renderRegularity(student) {
@@ -3060,6 +3107,7 @@ function renderHolidays() {
   holidayNotice.textContent = 'Die Ferien konnten gerade nicht aus dem Internet geladen werden. Du siehst den zuletzt gespeicherten Stand.';
   viewButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.view === holidayView));
   rowsView.hidden = holidayView !== 'rows';
+  document.querySelector('.holiday-toolbar .legend').hidden = holidayView !== 'rows';
   calendarView.hidden = holidayView !== 'calendar';
   if (holidayView === 'rows') {
     renderTimeline();
@@ -3205,17 +3253,40 @@ function renderDetail() {
   detailAllLabel.textContent = `Für alle aus ${regionName(student)} übernehmen (${others.map((s) => s.vorname).join(', ')})`;
 }
 
+const REGION_COLORS = ['var(--ink)', 'var(--pink)', '#3D8BF2', '#F5A623', '#9B6BFF', '#22B573', '#00B8D9', '#A0522D'];
+
+function calendarRegions() {
+  const groups = new Map();
+  activeStudents().forEach((student) => {
+    const code = studentCode(student);
+    if (!code || studentHolidays(student) === null) return;
+    if (!groups.has(code)) groups.set(code, { code, name: regionName(student), students: [] });
+    groups.get(code).students.push(student.vorname);
+  });
+  return [...groups.values()]
+    .sort((a, b) => b.students.length - a.students.length || a.name.localeCompare(b.name, 'de'))
+    .map((region, index) => ({
+      ...region,
+      color: REGION_COLORS[index % REGION_COLORS.length],
+      ferien: holidays[region.code] || [],
+      feiertage: feiertage[region.code] || [],
+    }));
+}
+
 function renderCalendar() {
-  const students = activeStudents().filter((s) => studentHolidays(s) !== null);
+  const regions = calendarRegions();
   const missing = activeStudents().filter((s) => studentHolidays(s) === null);
 
-  const legendItems = students.map((student) => {
-    const item = el('span');
-    const dot = el('span', 'legend-dot');
-    dot.style.background = student.farbe;
-    item.append(dot, student.vorname);
+  const legendItems = regions.map((region) => {
+    const item = el('span', 'cal-legend-item');
+    const line = el('span', 'cal-legend-line');
+    line.style.background = region.color;
+    item.append(line, el('strong', null, region.name), ` ${region.students.join(', ')}`);
     return item;
   });
+  const holidayItem = el('span', 'cal-legend-item');
+  holidayItem.append(el('span', 'cal-legend-feiertag'), 'Feiertag');
+  legendItems.push(holidayItem);
   if (missing.length > 0) {
     legendItems.push(el('span', 'student-meta', `Ohne Bundesland bzw. Kanton: ${missing.map((s) => s.vorname).join(', ')}`));
   }
@@ -3243,20 +3314,30 @@ function renderCalendar() {
       const cell = el('div', 'cal-day');
       if (day.getDay() === 0 || day.getDay() === 6) cell.classList.add('weekend');
       if (key === todayKey) cell.classList.add('today');
-      cell.append(el('span', 'cal-num', String(day.getDate())));
 
-      const stripes = el('div', 'cal-stripes');
-      students.forEach((student) => {
-        const stripe = el('span', 'cal-stripe');
-        const holiday = studentHolidays(student).find((h) => h.start <= key && key <= h.end);
-        if (holiday) {
-          stripe.classList.add(holidayStatus(student, holiday));
-          stripe.style.setProperty('--c', student.farbe);
-          stripe.title = `${student.vorname}: ${holiday.name}`;
+      const num = el('span', 'cal-num', String(day.getDate()));
+      const dayHolidays = regions
+        .map((region) => ({ region, feiertag: region.feiertage.find((f) => f.start <= key && key <= f.end) }))
+        .filter((x) => x.feiertag);
+      if (dayHolidays.length > 0) {
+        num.classList.add('feiertag');
+        num.style.setProperty('--c', dayHolidays[0].region.color);
+        num.title = dayHolidays.map((x) => `${x.feiertag.name} (${x.region.name})`).join('\n');
+      }
+      cell.append(num);
+
+      const lines = el('div', 'cal-lines');
+      regions.forEach((region) => {
+        const line = el('span', 'cal-line');
+        const ferien = region.ferien.find((h) => h.start <= key && key <= h.end);
+        if (ferien) {
+          line.classList.add('on');
+          line.style.setProperty('--c', region.color);
+          line.title = `${ferien.name} in ${region.name}: ${region.students.join(', ')}`;
         }
-        stripes.append(stripe);
+        lines.append(line);
       });
-      cell.append(stripes);
+      cell.append(lines);
       days.append(cell);
     }
 
@@ -3676,6 +3757,18 @@ regButtons.forEach((btn) => {
     const student = data.students.find((s) => s.id === editingId);
     if (student) renderRegularity(student);
   });
+});
+
+yearPrev.addEventListener('click', () => {
+  invoiceYear -= 1;
+  selectedInvoice = null;
+  renderInvoices();
+});
+
+yearNext.addEventListener('click', () => {
+  invoiceYear += 1;
+  selectedInvoice = null;
+  renderInvoices();
 });
 
 filterButtons.forEach((btn) => {
