@@ -274,7 +274,7 @@
         nachhol.append(el('div', 'eyebrow', 'Nachholen'));
         summary.nachhol.forEach((n) => {
           const row = el('div', 'pop-nachhol');
-          row.append(el('span', null, n.name), el('strong', null, String(n.stand)));
+          row.append(el('span', null, n.stand < 0 ? `${n.name} · aussetzen` : n.name), el('strong', null, n.stand < 0 ? `−${Math.abs(n.stand)}` : String(n.stand)));
           nachhol.append(row);
         });
         sections.push(nachhol);

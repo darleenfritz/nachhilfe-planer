@@ -1780,3 +1780,24 @@ html, body {
 .wg-day-date{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wg-feiertag{color:var(--pink);font-weight:600}
 .wg-head.feiertag .wg-day-name{color:var(--pink)}
+
+.color-swatches{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.color-swatch{position:relative;width:30px;height:30px;padding:0;border:1.5px solid var(--ink);border-radius:50%;background:var(--c);cursor:pointer}
+.color-swatch.taken::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1.5px dashed var(--faint)}
+.color-swatch.active{box-shadow:0 0 0 3px var(--paper),0 0 0 5px var(--ink)}
+.color-swatch.custom{display:inline-flex;overflow:hidden;background:conic-gradient(#FF2E88,#F5A623,#C6F432,#22B573,#00B8D9,#3D8BF2,#9B6BFF,#FF2E88)}
+.color-swatch.custom.active{background:var(--c)}
+.color-swatch.custom input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none;padding:0}
+
+html, body, .layout {
+  overflow: clip;
+}
+
+.choice label {
+  position: relative;
+}
+
+.choice input {
+  top: 0;
+  left: 0;
+}

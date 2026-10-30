@@ -127,10 +127,7 @@
               </select>
             </label>
           </div>
-          <label class="check-label" id="extra-nachhol-row">
-            <input type="checkbox" name="nachholung">
-            Ist eine Nachholstunde
-          </label>
+          <p class="hint" id="extra-nachhol-row">Bei Plattformschülern zählt jede Zusatzstunde als Nachholstunde.</p>
           <div class="todo-actions">
             <button type="submit" class="btn btn-small btn-primary">Speichern</button>
             <button type="button" class="btn btn-small" id="extra-cancel">Abbrechen</button>
@@ -598,6 +595,10 @@
                 <span class="label">Geburtstag <em>optional</em></span>
                 <input type="date" name="geburtstag">
               </label>
+              <div class="field">
+                <span class="label">Farbe</span>
+                <div class="color-swatches" id="color-swatches"></div>
+              </div>
             </fieldset>
 
             <fieldset class="form-section">

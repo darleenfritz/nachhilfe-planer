@@ -48,6 +48,7 @@ let selectedInvoice = null;
 let invoiceYear = new Date().getFullYear();
 let regRange = '3m';
 let studentTab = 'overview';
+let formColor = null;
 let examFormOpen = false;
 let editingExamId = null;
 let examFiles = [];
@@ -162,6 +163,7 @@ const colorSecond = document.getElementById('color-second');
 const plattformToggle = document.getElementById('plattform-toggle');
 const plattformHint = document.getElementById('plattform-hint');
 const artField = document.getElementById('art-field');
+const colorSwatches = document.getElementById('color-swatches');
 const modeButtons = document.querySelectorAll('[data-mode]');
 const blockToggle = document.getElementById('block-toggle');
 const blockHint = document.getElementById('block-hint');
@@ -651,9 +653,24 @@ function sonderAt(studentId, datum, zeit) {
   return sonderTermine().find((s) => s.studentId === studentId && s.datum === datum && s.zeit === zeit) || null;
 }
 
+function isNachholSonder(sonder) {
+  if (sonder.ersetzt) return false;
+  const student = data.students.find((s) => s.id === sonder.studentId);
+  return Boolean(sonder.nachholung) || Boolean(student && student.art === 'plattform');
+}
+
 function sonderNote(sonder) {
   if (sonder.ersetzt) return `Ersatz für ${DAYS[parseDay(sonder.ersetzt.datum).getDay()]}`;
-  return sonder.nachholung ? 'Nachholstunde' : 'Zusatzstunde';
+  return isNachholSonder(sonder) ? 'Nachholstunde' : 'Zusatzstunde';
+}
+
+function nachholNumber(stand) {
+  return stand < 0 ? `−${Math.abs(stand)}` : String(stand);
+}
+
+function nachholLabel(stand) {
+  if (stand < 0) return Math.abs(stand) === 1 ? 'Stunde im Voraus, einmal aussetzen' : `Stunden im Voraus, ${Math.abs(stand)}× aussetzen`;
+  return stand === 1 ? 'Stunde nachzuholen' : 'Stunden nachzuholen';
 }
 
 function occurrencesOn(date) {
@@ -723,7 +740,7 @@ function nachholEvents(student) {
     });
 
   sonderTermine()
-    .filter((s) => s.studentId === student.id && s.nachholung && s.datum >= createdKey)
+    .filter((s) => s.studentId === student.id && !s.ersetzt && s.datum >= createdKey)
     .forEach((s) => {
       const record = findRecord(student.id, s.datum, s.zeit);
       const cancelled = Boolean(record) && record.status === 'ausgefallen';
@@ -1263,7 +1280,7 @@ function renderStudentProfile(student) {
   facts.push(...fact('Termine', student.termine.length > 0 ? student.termine.map((t) => `${DAYS[t.tag]} ${t.zeit}`).join(' · ') : 'keine festen Termine'));
   if (isPlattform) {
     facts.push(...fact('Unterricht', `Plattform · ${student.dauer} Min`));
-    facts.push(...fact('Nachholen', `${nachholStand(student)} ${nachholStand(student) === 1 ? 'Stunde' : 'Stunden'}`));
+    facts.push(...fact('Nachholen', `${nachholNumber(nachholStand(student))} · ${nachholLabel(nachholStand(student))}`));
   } else {
     facts.push(...fact('Unterricht', `${student.dauer} Min · ${formatEuro(priceFor(student.dauer))}`));
     if (student.rechnungAn) facts.push(...fact('Rechnung an', student.rechnungAn));
@@ -1283,8 +1300,8 @@ function renderStudentProfile(student) {
 
   if (isPlattform) {
     const stand = nachholStand(student);
-    const count = el('div', 'nachhol-count', String(stand));
-    count.append(el('small', null, stand === 1 ? 'Stunde nachzuholen' : 'Stunden nachzuholen'));
+    const count = el('div', 'nachhol-count', nachholNumber(stand));
+    count.append(el('small', null, nachholLabel(stand)));
     const events = nachholEvents(student).slice(0, 3).map((event) => {
       const row = el('div', 'nachhol-row');
       row.append(
@@ -1320,8 +1337,8 @@ function renderStudentProfile(student) {
   tabCountExams.hidden = upcoming.length === 0;
   tabCountExams.textContent = String(upcoming.length);
   const stand = isPlattform ? nachholStand(student) : 0;
-  tabCountNachhol.hidden = stand <= 0;
-  tabCountNachhol.textContent = String(stand);
+  tabCountNachhol.hidden = stand === 0;
+  tabCountNachhol.textContent = nachholNumber(stand);
 
   renderRegularity(student);
   renderHistory(student);
@@ -1330,8 +1347,8 @@ function renderStudentProfile(student) {
 }
 
 function openForm(student = null, tab = 'overview') {
-  resetForm();
   editingId = student ? student.id : null;
+  resetForm();
   archiveBtn.hidden = !student;
   studentTabsBar.hidden = !student;
   studentTags.hidden = !student;
@@ -1694,7 +1711,7 @@ function buildSummary() {
     nachhol: activeStudents()
       .filter((s) => s.art === 'plattform')
       .map((s) => ({ name: s.vorname, stand: nachholStand(s) }))
-      .filter((n) => n.stand > 0),
+      .filter((n) => n.stand !== 0),
     birthdays: upcomingBirthdays(),
   };
 }
@@ -1738,7 +1755,7 @@ function renderToday(summary) {
     ? [el('div', 'student-meta', 'Nichts nachzuholen.')]
     : summary.nachhol.map((n) => {
       const row = el('div', 'tile-row');
-      row.append(el('span', null, n.name), el('span', 'tile-count', String(n.stand)));
+      row.append(el('span', null, n.stand < 0 ? `${n.name} · aussetzen` : n.name), el('span', 'tile-count', nachholNumber(n.stand)));
       return row;
     })));
 
@@ -2263,7 +2280,6 @@ function updateExtraStudent() {
   const isPlattform = student.art === 'plattform';
   extraForm.elements.dauer.value = String(student.dauer);
   extraNachholRow.hidden = !isPlattform;
-  if (!isPlattform) extraForm.elements.nachholung.checked = false;
 }
 
 function renderExtraForm() {
@@ -2889,7 +2905,7 @@ function renderHistory(student) {
 
 function renderNachhol(student) {
   const stand = nachholStand(student);
-  nachholCount.replaceChildren(String(stand), el('small', null, stand === 1 ? 'Stunde nachzuholen' : 'Stunden nachzuholen'));
+  nachholCount.replaceChildren(nachholNumber(stand), el('small', null, nachholLabel(stand)));
 
   const rows = nachholEvents(student).map((event) => {
     const row = el('div', 'nachhol-row');
@@ -2969,8 +2985,50 @@ function addTermin(termin = null) {
   termine.append(row);
 }
 
+function nextFreeColor() {
+  const used = activeStudents().filter((s) => s.id !== editingId).map((s) => s.farbe.toLowerCase());
+  return COLORS.find((c) => !used.includes(c.toLowerCase())) || COLORS[activeStudents().length % COLORS.length];
+}
+
+function renderColorSwatches() {
+  const used = activeStudents().filter((s) => s.id !== editingId);
+  const buttons = COLORS.map((color) => {
+    const btn = el('button', 'color-swatch');
+    btn.type = 'button';
+    btn.style.setProperty('--c', color);
+    const owner = used.find((s) => s.farbe.toLowerCase() === color.toLowerCase());
+    btn.title = owner ? `schon bei ${owner.vorname}` : 'frei';
+    if (owner) btn.classList.add('taken');
+    if (formColor && formColor.toLowerCase() === color.toLowerCase()) btn.classList.add('active');
+    btn.addEventListener('click', () => {
+      formColor = color;
+      renderColorSwatches();
+    });
+    return btn;
+  });
+  const custom = el('label', 'color-swatch custom');
+  custom.title = 'Eigene Farbe';
+  const input = el('input');
+  input.type = 'color';
+  input.value = formColor || '#000000';
+  if (formColor && !COLORS.some((c) => c.toLowerCase() === formColor.toLowerCase())) {
+    custom.classList.add('active');
+    custom.style.setProperty('--c', formColor);
+  }
+  input.addEventListener('input', () => {
+    formColor = input.value;
+    custom.classList.add('active');
+    custom.style.setProperty('--c', formColor);
+    colorSwatches.querySelectorAll('.color-swatch:not(.custom)').forEach((b) => b.classList.remove('active'));
+  });
+  custom.append(input);
+  colorSwatches.replaceChildren(...buttons, custom);
+}
+
 function resetForm() {
   form.reset();
+  formColor = nextFreeColor();
+  renderColorSwatches();
   termine.replaceChildren();
   addTermin();
   updateLand();
@@ -2984,6 +3042,8 @@ function fillForm(student) {
   f.vorname.value = student.vorname;
   f.nachname.value = student.nachname;
   f.geburtstag.value = student.geburtstag || '';
+  formColor = student.farbe;
+  renderColorSwatches();
   f.land.value = student.land;
   updateLand();
   f.region.value = student.region || '';
@@ -3028,6 +3088,7 @@ function readForm() {
     rechnungAn: art === 'privat' ? f.rechnungAn.value.trim() : null,
     nachholStart: art === 'plattform' ? Number(f.nachholStart.value) : 0,
     termine: readTermine(),
+    farbe: formColor || nextFreeColor(),
   };
 }
 
@@ -3074,7 +3135,7 @@ function studentRow(student) {
 
   const lastCell = el('div');
   if (student.art === 'plattform') {
-    lastCell.append(el('div', 'student-time', String(nachholStand(student))), el('div', 'student-meta', 'nachzuholen'));
+    lastCell.append(el('div', 'student-time', nachholNumber(nachholStand(student))), el('div', 'student-meta', nachholStand(student) < 0 ? 'im Voraus' : 'nachzuholen'));
   } else {
     lastCell.append(el('div', 'student-time', formatEuro(priceFor(student.dauer))), el('div', 'student-meta', 'pro Stunde'));
   }
@@ -3447,7 +3508,6 @@ form.addEventListener('submit', async (event) => {
       data.students.push({
         id: crypto.randomUUID(),
         ...values,
-        farbe: COLORS[data.students.length % COLORS.length],
         archiviert: false,
         schuljahrGeprueft: schoolYear(),
         angelegt: new Date().toISOString(),
@@ -3581,7 +3641,7 @@ extraForm.addEventListener('submit', async (event) => {
     datum: f.datum.value,
     zeit: f.zeit.value,
     dauer: Number(f.dauer.value),
-    nachholung: student.art === 'plattform' && f.nachholung.checked,
+    nachholung: student.art === 'plattform',
     ersetzt: null,
   });
 
