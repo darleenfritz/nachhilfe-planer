@@ -753,7 +753,7 @@ function nachholEvents(student) {
     if (!isPausedOn(student, day)) continue;
     const datum = dayKey(day);
     student.termine
-      .filter((t) => t.tag === day.getDay() && !movedTo(student.id, datum, t.zeit))
+      .filter((t) => t.tag === day.getDay() && !movedTo(student.id, datum, t.zeit) && !findRecord(student.id, datum, t.zeit))
       .forEach(() => events.push({ datum, delta: 1, text: 'Stunde in pausierten Ferien' }));
   }
 
