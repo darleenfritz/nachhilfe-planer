@@ -2130,6 +2130,27 @@ function lessonActionButton(label, className, action) {
   return btn;
 }
 
+function updateLessonTopic(record, thema) {
+  return persist(() => {
+    const target = stunden().find((r) => r.id === record.id);
+    if (target) target.thema = thema;
+  });
+}
+
+function topicInput(record) {
+  const input = el('input', 'lesson-topic');
+  input.type = 'text';
+  input.placeholder = 'Thema (optional)';
+  input.value = record ? record.thema || '' : '';
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') input.blur();
+  });
+  if (record) {
+    input.addEventListener('change', () => updateLessonTopic(record, input.value.trim()));
+  }
+  return input;
+}
+
 function renderLessonDetail(lessons) {
   const lesson = scheduleMode === 'real' ? lessons.find(isSelectedLesson) : null;
   lessonDetail.hidden = !lesson;
@@ -2157,12 +2178,16 @@ function renderLessonDetail(lessons) {
     if (lesson.sonder) status = `${sonderNote(lesson.sonder)} · ${status}`;
 
     if (record) {
+      if (record.status === 'stattgefunden') buttons.push(topicInput(record));
       buttons.push(lessonActionButton('Zurücksetzen', '', () => resetLesson(lesson)));
     } else {
       if (isPrivat) {
+        const topic = topicInput(null);
+        buttons.push(topic);
         buttons.push(lessonActionButton('Stattgefunden', 'btn-primary', () => saveLesson(lesson, {
           status: 'stattgefunden',
           dauer: lesson.dauer,
+          thema: topic.value.trim(),
           letzteImMonat: isLastInMonth(student, date),
         })));
       }
@@ -2896,7 +2921,7 @@ function renderHistory(student) {
     row.append(
       el('span', 'history-date', shortDate(parseDay(record.datum))),
       el('span', `history-status ${record.status}`, statusText),
-      el('span', null, record.thema || ''),
+      record.status === 'stattgefunden' ? topicInput(record) : el('span', null, record.thema || ''),
       el('span', 'history-price', record.preis ? formatEuro(record.preis) : ''),
     );
     return row;

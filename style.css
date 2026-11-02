@@ -1818,3 +1818,6 @@ html, body, .layout {
 .invoice-row > :nth-child(4) {
   text-align: right;
 }
+
+.history-row .lesson-topic{width:100%;min-width:0;box-sizing:border-box}
+.detail-buttons .lesson-topic{min-width:220px}
