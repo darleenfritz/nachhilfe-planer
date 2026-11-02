@@ -945,8 +945,7 @@ function invoiceLine(record) {
   const date = parseDay(record.datum);
   const day = `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}`;
   const end = toTimeString(toMinutes(record.zeit) + record.dauer);
-  const note = record.status === 'stattgefunden' ? record.thema : 'nicht erschienen';
-  return ['•', day, `${record.zeit}-${end} Uhr`, note, centsText(toCents(record.preis))].filter(Boolean).join(' ');
+  const note = record.status === 'stattgefunden' ? (record.thema ? `(${record.thema})` : '') : '(nicht erschienen)';  return ['•', day, `${record.zeit}-${end} Uhr`, note, centsText(toCents(record.preis))].filter(Boolean).join(' ');
 }
 
 function autoInvoiceText(inv) {
