@@ -1833,3 +1833,8 @@ html, body, .layout {
 .next-chip{display:inline-flex;align-items:center;gap:6px}
 .next-dot{width:8px;height:8px;border-radius:50%;border:1px solid var(--ink);flex:none}
 .next-note{color:var(--pink);font-weight:600}
+#lesson-detail .detail-text{flex:1 1 100%}
+#lesson-detail .detail-actions{flex:1 1 100%;min-width:0}
+#lesson-detail .detail-buttons{flex-wrap:wrap;align-items:center;gap:8px}
+#lesson-detail .detail-buttons .lesson-topic{flex:1 1 100%;min-width:0;margin-bottom:6px;font-size:18px}
+#lesson-detail .detail-buttons .btn{white-space:nowrap}
