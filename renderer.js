@@ -73,7 +73,9 @@ const newStudentBtn = document.getElementById('new-student-btn');
 const placeholderText = document.getElementById('placeholder-text');
 const todoBlock = document.getElementById('todo-block');
 const todoList = document.getElementById('todo-list');
-const overviewEmpty = document.getElementById('overview-empty');
+const todoCount = document.getElementById('todo-count');
+const nextDaysBlock = document.getElementById('next-days-block');
+const nextDaysList = document.getElementById('next-days');
 const todayList = document.getElementById('today-list');
 const todayFree = document.getElementById('today-free');
 const tileMoney = document.getElementById('tile-money');
@@ -945,7 +947,8 @@ function invoiceLine(record) {
   const date = parseDay(record.datum);
   const day = `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}`;
   const end = toTimeString(toMinutes(record.zeit) + record.dauer);
-  const note = record.status === 'stattgefunden' ? (record.thema ? `(${record.thema})` : '') : '(nicht erschienen)';  return ['•', day, `${record.zeit}-${end} Uhr`, note, centsText(toCents(record.preis))].filter(Boolean).join(' ');
+  const note = record.status === 'stattgefunden' ? (record.thema ? `(${record.thema})` : '') : '(nicht erschienen)';
+  return ['•', day, `${record.zeit}-${end} Uhr`, note, centsText(toCents(record.preis))].filter(Boolean).join(' ');
 }
 
 function autoInvoiceText(inv) {
@@ -1772,6 +1775,53 @@ function renderToday(summary) {
   tileBirthdayList.replaceChildren(...summary.birthdays.map((b) => el('div', 'hand tile-birthday-text', b.text)));
 }
 
+const NEXT_DAYS = 3;
+const NEXT_DAYS_RANGE = 14;
+
+function nextLessonDays() {
+  const today = startOfDay(new Date());
+  const result = [];
+  for (let i = 1; i <= NEXT_DAYS_RANGE && result.length < NEXT_DAYS; i++) {
+    const date = addDays(today, i);
+    const datum = dayKey(date);
+    const lessons = occurrencesOn(date)
+      .filter((o) => {
+        const record = findRecord(o.student.id, o.datum, o.zeit);
+        return !(record && record.status === 'ausgefallen');
+      })
+      .sort((a, b) => a.start - b.start);
+    const exams = schulaufgaben().filter((e) => e.datum === datum && activeStudent(e.studentId));
+    if (lessons.length === 0 && exams.length === 0) continue;
+    result.push({ date, datum, lessons, exams, feiertage: feiertageOn(datum) });
+  }
+  return result;
+}
+
+function renderNextDays() {
+  const days = nextLessonDays();
+  nextDaysBlock.hidden = days.length === 0;
+  const tomorrow = dayKey(addDays(startOfDay(new Date()), 1));
+  nextDaysList.replaceChildren(...days.map((day) => {
+    const row = el('div', 'next-day');
+    const label = day.datum === tomorrow ? 'Morgen' : `${DAYS[day.date.getDay()]}, ${day.date.getDate()}.`;
+    const items = el('div', 'next-day-items');
+    day.lessons.forEach((o) => {
+      const chip = el('span', 'next-chip');
+      const dot = el('i', 'next-dot');
+      dot.style.background = o.student.farbe;
+      chip.append(dot, `${formatTime(o.start)} ${o.student.vorname}`);
+      if (o.sonder) chip.title = sonderNote(o.sonder);
+      items.append(chip);
+    });
+    day.exams.forEach((e) => {
+      items.append(el('span', 'next-note', `${e.art} ${activeStudent(e.studentId).vorname}`));
+    });
+    day.feiertage.forEach((name) => items.append(el('span', 'next-note', name)));
+    row.append(el('span', 'next-day-label', label), items);
+    return row;
+  }));
+}
+
 function renderOverview() {
   const summary = buildSummary();
   renderToday(summary);
@@ -1787,7 +1837,8 @@ function renderOverview() {
 
   todoList.replaceChildren(...cards);
   todoBlock.hidden = cards.length === 0;
-  overviewEmpty.hidden = cards.length > 0;
+  todoCount.textContent = String(cards.length);
+  renderNextDays();
 }
 
 function viewStart() {

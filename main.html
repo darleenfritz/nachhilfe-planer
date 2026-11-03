@@ -38,11 +38,23 @@
 
       <section class="page" id="page-overview">
         <div class="overview-block">
-          <h2 class="block-title"><span class="num">I</span>Heute</h2>
+          <h2 class="block-title">Heute</h2>
           <div class="today-grid">
-            <div class="today-card">
-              <div class="today-list" id="today-list"></div>
-              <div class="today-free" id="today-free"></div>
+            <div class="today-main">
+              <div class="today-card">
+                <div class="today-list" id="today-list"></div>
+                <div class="today-free" id="today-free"></div>
+              </div>
+
+              <div class="today-section" id="todo-block" hidden>
+                <h3 class="today-section-title">Zu erledigen <span class="today-count" id="todo-count"></span></h3>
+                <div class="todo-list" id="todo-list"></div>
+              </div>
+
+              <div class="today-section next-days" id="next-days-block" hidden>
+                <h3 class="today-section-title">Die nächsten Tage</h3>
+                <div id="next-days"></div>
+              </div>
             </div>
             <div class="today-tiles">
               <div class="tile tile-exam" id="tile-exam" hidden>
@@ -67,15 +79,6 @@
           </div>
         </div>
 
-        <div class="overview-block" id="todo-block" hidden>
-          <h2 class="block-title"><span class="num">II</span>Zu erledigen</h2>
-          <div class="todo-list" id="todo-list"></div>
-        </div>
-
-        <div class="empty" id="overview-empty">
-          Gerade gibt es nichts zu erledigen.
-          <span class="hand">Genieß den Tag!</span>
-        </div>
       </section>
 
       <section class="page" id="page-placeholder" hidden>

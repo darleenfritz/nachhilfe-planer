@@ -1821,3 +1821,15 @@ html, body, .layout {
 
 .history-row .lesson-topic{width:100%;min-width:0;box-sizing:border-box}
 .detail-buttons .lesson-topic{min-width:220px}
+.today-main{display:flex;flex-direction:column;gap:22px;min-width:0}
+.today-section-title{display:flex;align-items:center;gap:8px;margin:0 0 14px;font-family:var(--serif);font-size:24px;font-weight:400}
+.today-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;box-sizing:border-box;border-radius:999px;background:var(--pink);color:var(--paper);font-family:var(--sans);font-size:11px;font-weight:700}
+.today-section .todo-list{display:flex;flex-direction:column;gap:20px}
+.next-days{border-top:1.5px solid var(--ink);padding-top:12px}
+.next-day{display:grid;grid-template-columns:90px minmax(0,1fr);gap:12px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line)}
+.next-day:last-child{border-bottom:none}
+.next-day-label{font-family:var(--serif);font-size:20px}
+.next-day-items{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px}
+.next-chip{display:inline-flex;align-items:center;gap:6px}
+.next-dot{width:8px;height:8px;border-radius:50%;border:1px solid var(--ink);flex:none}
+.next-note{color:var(--pink);font-weight:600}
