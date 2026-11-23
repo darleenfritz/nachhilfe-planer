@@ -54,6 +54,7 @@ let editingExamId = null;
 let examFiles = [];
 let examAdded = [];
 let examRemoved = [];
+let examYear = schoolYear();
 let taskFormOpen = false;
 let editingTaskId = null;
 let taskTags = [];
@@ -100,6 +101,9 @@ const examDelete = document.getElementById('exam-delete');
 const examNext = document.getElementById('exam-next');
 const examUpcoming = document.getElementById('exam-upcoming');
 const examPast = document.getElementById('exam-past');
+const examYearPrev = document.getElementById('exam-year-prev');
+const examYearNext = document.getElementById('exam-year-next');
+const examYearLabel = document.getElementById('exam-year-label');
 const taskSearch = document.getElementById('task-search');
 const taskNew = document.getElementById('task-new');
 const taskForm = document.getElementById('task-form');
@@ -2668,9 +2672,52 @@ function renderExams() {
   examUpcoming.replaceChildren(...(upcoming.length === 0
     ? [el('div', 'history-empty', 'Gerade steht keine Schulaufgabe an.')]
     : upcoming.map((e) => examRow(e, true))));
-  examPast.replaceChildren(...(past.length === 0
-    ? [el('div', 'history-empty', 'Noch keine vergangenen Schulaufgaben.')]
-    : past.map((e) => examRow(e, true))));
+  renderPastExams(past);
+}
+
+function renderPastExams(past) {
+  const current = schoolYear();
+  const years = past.map((e) => schoolYear(examDate(e)));
+  const minYear = Math.min(current, ...years);
+  examYear = Math.min(Math.max(examYear, minYear), current);
+  examYearLabel.textContent = `Schuljahr ${schoolYearLabel(examYear)}`;
+  examYearPrev.disabled = examYear <= minYear;
+  examYearNext.disabled = examYear >= current;
+
+  const groups = new Map();
+  past
+    .filter((e) => schoolYear(examDate(e)) === examYear)
+    .forEach((e) => {
+      if (!groups.has(e.studentId)) groups.set(e.studentId, []);
+      groups.get(e.studentId).push(e);
+    });
+
+  const blocks = [...groups.entries()]
+    .map(([id, exams]) => ({ student: data.students.find((s) => s.id === id), exams }))
+    .filter((g) => g.student)
+    .sort((a, b) => byFirstName(a.student, b.student))
+    .map(({ student, exams }) => {
+      const block = el('div', 'past-block');
+      const head = el('div', 'past-block-head');
+      const name = el('div', 'past-block-name');
+      const dot = el('span', 'tl-dot');
+      dot.style.background = student.farbe;
+      name.append(dot, fullName(student));
+      const meta = examYear === current
+        ? [student.klasse ? `Klasse ${student.klasse}` : null, student.schulform, student.archiviert ? 'archiviert' : null]
+        : [student.archiviert ? 'archiviert' : null];
+      head.append(name);
+      const metaText = meta.filter(Boolean).join(' · ');
+      if (metaText) head.append(el('div', 'student-meta', metaText));
+      const list = el('div', 'exam-list');
+      exams.forEach((e) => list.append(examRow(e, false)));
+      block.append(head, list);
+      return block;
+    });
+
+  examPast.replaceChildren(...(blocks.length === 0
+    ? [el('div', 'history-empty', `Keine vergangenen Schulaufgaben im Schuljahr ${schoolYearLabel(examYear)}.`)]
+    : blocks));
 }
 
 function renderStudentExams(student) {
@@ -3838,6 +3885,16 @@ taskForm.addEventListener('submit', async (event) => {
     taskFileAdded = null;
     closeTaskForm();
   }
+});
+
+examYearPrev.addEventListener('click', () => {
+  examYear -= 1;
+  renderExams();
+});
+
+examYearNext.addEventListener('click', () => {
+  examYear += 1;
+  renderExams();
 });
 
 examNew.addEventListener('click', () => {

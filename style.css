@@ -1838,3 +1838,12 @@ html, body, .layout {
 #lesson-detail .detail-buttons{flex-wrap:wrap;align-items:center;gap:8px}
 #lesson-detail .detail-buttons .lesson-topic{flex:1 1 100%;min-width:0;margin-bottom:6px;font-size:18px}
 #lesson-detail .detail-buttons .btn{white-space:nowrap}
+.past-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--ink);padding-top:14px;margin-bottom:16px}
+.past-head .block-title{border-top:none;padding-top:0;margin:0}
+.past-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;align-items:start;margin-bottom:22px}
+.past-block{background:var(--card);border:1px solid var(--ink);padding:14px 16px 6px}
+.past-block-head{padding-bottom:8px}
+.past-block-name{display:flex;align-items:center;gap:8px;font-family:var(--serif);font-size:24px;line-height:1.1}
+.past-block .exam-list{border-top:1px solid var(--ink);margin-bottom:0}
+.past-block .exam-row{grid-template-columns:52px minmax(0,1fr) auto;padding:8px 0}
+.past-block .exam-row:last-child{border-bottom:none}

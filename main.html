@@ -290,8 +290,15 @@
         </div>
 
         <div class="overview-block">
-          <h2 class="block-title"><span class="num">II</span>Vergangene</h2>
-          <div class="exam-list" id="exam-past"></div>
+          <div class="past-head">
+            <h2 class="block-title"><span class="num">II</span>Vergangene</h2>
+            <div class="year-switch">
+              <button class="btn btn-round" id="exam-year-prev" aria-label="Voriges Schuljahr">←</button>
+              <span class="year-label" id="exam-year-label"></span>
+              <button class="btn btn-round" id="exam-year-next" aria-label="Nächstes Schuljahr">→</button>
+            </div>
+          </div>
+          <div class="past-grid" id="exam-past"></div>
         </div>
       </section>
 
