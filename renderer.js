@@ -845,24 +845,108 @@ function lessonPrice(art, values) {
 }
 
 function saveLesson(occ, values) {
+  return persist(() => writeLessonRecord(occ, values));
+}
+
+function writeLessonRecord(occ, values) {
   const art = occ.student.art;
-  return persist(() => {
-    data.stunden = stunden().filter((r) => !(r.studentId === occ.student.id && r.datum === occ.datum && r.zeit === occ.zeit));
-    data.stunden.push({
-      id: crypto.randomUUID(),
-      studentId: occ.student.id,
-      datum: occ.datum,
-      zeit: occ.zeit,
-      art,
-      status: values.status,
-      dauer: values.dauer,
-      preis: lessonPrice(art, values),
-      thema: values.thema || '',
-      letzteImMonat: Boolean(values.letzteImMonat),
-      abgesagtVon: values.abgesagtVon || null,
-      sonderId: occ.sonder ? occ.sonder.id : null,
-      erfasst: new Date().toISOString(),
-    });
+  data.stunden = stunden().filter((r) => !(r.studentId === occ.student.id && r.datum === occ.datum && r.zeit === occ.zeit));
+  data.stunden.push({
+    id: crypto.randomUUID(),
+    studentId: occ.student.id,
+    datum: occ.datum,
+    zeit: occ.zeit,
+    art,
+    status: values.status,
+    dauer: values.dauer,
+    preis: lessonPrice(art, values),
+    thema: values.thema || '',
+    hausaufgaben: values.hausaufgaben !== false,
+    letzteImMonat: Boolean(values.letzteImMonat),
+    abgesagtVon: values.abgesagtVon || null,
+    sonderId: occ.sonder ? occ.sonder.id : null,
+    erfasst: new Date().toISOString(),
+  });
+}
+
+function notizen() {
+  return data.notizen || [];
+}
+
+function lessonKey(studentId, datum, zeit) {
+  return `${studentId}|${datum}|${zeit}`;
+}
+
+function findNotiz(studentId, datum, zeit) {
+  return notizen().find((n) => n.studentId === studentId && n.datum === datum && n.zeit === zeit) || null;
+}
+
+function writeNotiz(studentId, datum, zeit, text) {
+  data.notizen = notizen().filter((n) => !(n.studentId === studentId && n.datum === datum && n.zeit === zeit));
+  if (text) data.notizen.push({ id: crypto.randomUUID(), studentId, datum, zeit, text });
+}
+
+function saveNotiz(studentId, datum, zeit, text) {
+  return persist(() => writeNotiz(studentId, datum, zeit, text));
+}
+
+function heldOrOpen(occ) {
+  const record = findRecord(occ.student.id, occ.datum, occ.zeit);
+  return !record || record.status === 'stattgefunden';
+}
+
+function previousLesson(student, date, start) {
+  for (let i = 0; i <= 28; i++) {
+    const day = addDays(startOfDay(date), -i);
+    const found = occurrencesOn(day)
+      .filter((o) => o.student.id === student.id && (i > 0 || o.start < start) && heldOrOpen(o))
+      .sort((a, b) => b.start - a.start)[0];
+    if (found) return found;
+  }
+  return null;
+}
+
+function homeworkGiven(occ) {
+  if (occ.student.art === 'plattform') return true;
+  const record = findRecord(occ.student.id, occ.datum, occ.zeit);
+  return !record || record.hausaufgaben !== false;
+}
+
+function lessonCarry(occ) {
+  const prev = previousLesson(occ.student, occ.date, occ.start);
+  const note = prev ? findNotiz(prev.student.id, prev.datum, prev.zeit) : null;
+  const key = lessonKey(occ.student.id, occ.datum, occ.zeit);
+  const due = Boolean(occ.student.hausaufgaben && prev && homeworkGiven(prev));
+  return {
+    key,
+    notiz: note ? note.text : '',
+    ha: due ? (data.haKontrolliert || []).includes(key) : null,
+  };
+}
+
+async function toggleHomework(key) {
+  const saved = await persist(() => {
+    const list = data.haKontrolliert || [];
+    data.haKontrolliert = list.includes(key) ? list.filter((k) => k !== key) : [...list, key];
+  });
+  if (saved) renderOverview();
+}
+
+const notified = new Set();
+
+function checkHomeworkReminders() {
+  if (!window.api.notify) return;
+  const today = startOfDay(new Date());
+  const now = nowMinutes();
+  occurrencesOn(today).forEach((o) => {
+    if (!o.student.hausaufgaben) return;
+    const end = o.start + o.dauer;
+    const key = lessonKey(o.student.id, o.datum, o.zeit);
+    if (notified.has(key) || now < end - 10 || now >= end) return;
+    const record = findRecord(o.student.id, o.datum, o.zeit);
+    if (record && record.status === 'ausgefallen') return;
+    notified.add(key);
+    window.api.notify(`${o.student.vorname}: Hausaufgaben aufgeben`, `Die Stunde endet um ${formatTime(end)} Uhr.`);
   });
 }
 
@@ -1274,6 +1358,7 @@ function renderStudentProfile(student) {
   }
   const pause = pauseNote(student);
   if (pause) tags.push(el('span', 'tag', pause));
+  if (student.hausaufgaben) tags.push(el('span', 'tag tag-ha', 'Hausaufgaben'));
   studentTags.replaceChildren(...tags);
 
   const facts = [];
@@ -1552,16 +1637,34 @@ function lessonCard(occ) {
   check.type = 'checkbox';
   check.checked = isLastInMonth(occ.student, occ.date);
   checkLabel.append(check, 'Letzte Stunde im Monat');
-  fields.append(topic, checkLabel);
+  const note = el('input', 'lesson-topic');
+  note.type = 'text';
+  note.placeholder = 'Notiz fürs nächste Mal (optional)';
+  const existingNote = findNotiz(occ.student.id, occ.datum, occ.zeit);
+  if (existingNote) note.value = existingNote.text;
+  fields.append(topic, note, checkLabel);
+  const homework = el('input');
+  homework.type = 'checkbox';
+  homework.checked = true;
+  if (occ.student.hausaufgaben) {
+    const homeworkLabel = el('label', 'check-label');
+    homeworkLabel.append(homework, 'Hausaufgaben aufgegeben');
+    fields.append(homeworkLabel);
+  }
 
   const extra = el('div', 'lesson-extra');
   extra.hidden = true;
   let extraMode = null;
 
-  const values = () => ({ thema: topic.value.trim(), letzteImMonat: check.checked });
+  const values = () => ({ thema: topic.value.trim(), letzteImMonat: check.checked, hausaufgaben: homework.checked });
 
   async function save(extraValues) {
-    if (await saveLesson(occ, { ...values(), ...extraValues })) renderOverview();
+    const all = { ...values(), ...extraValues };
+    const saved = await persist(() => {
+      writeLessonRecord(occ, all);
+      writeNotiz(occ.student.id, occ.datum, occ.zeit, all.status === 'stattgefunden' ? note.value.trim() : '');
+    });
+    if (saved) renderOverview();
   }
 
   function showExtra(mode) {
@@ -1632,7 +1735,11 @@ function todayLessons() {
         status = 'läuft gerade';
       }
       const art = o.student.art === 'plattform' ? 'Plattform' : 'Privat';
+      const carry = kind === 'cancelled' ? { key: '', notiz: '', ha: null } : lessonCarry(o);
       return {
+        key: carry.key,
+        notiz: carry.notiz,
+        ha: carry.ha,
         zeit: formatTime(o.start),
         ende: formatTime(end),
         endMinutes: end,
@@ -1753,7 +1860,21 @@ function renderToday(summary) {
       if (lesson.kind === 'done') name.append(el('span', 'wg-check', '✓'));
       info.append(name, el('div', 'student-meta', lesson.meta));
       row.append(el('div', 'today-time', lesson.zeit), info);
-      if (lesson.status && lesson.kind !== 'done') row.append(el('div', 'hand today-status', lesson.status));
+      const side = el('div', 'today-side');
+      if (lesson.status && lesson.kind !== 'done') side.append(el('div', 'hand today-status', lesson.status));
+      if (lesson.ha !== null && lesson.ha !== undefined) {
+        const ha = el('button', `ha-check${lesson.ha ? ' done' : ''}`);
+        ha.type = 'button';
+        ha.append(el('span', 'ha-box', lesson.ha ? '✓' : ''), el('span', 'ha-text', 'Hausaufgaben kontrollieren'));
+        ha.addEventListener('click', () => toggleHomework(lesson.key));
+        side.append(ha);
+      }
+      if (lesson.notiz) {
+        const note = el('div', 'today-note');
+        note.append(el('span', 'today-note-label', 'Notiz:'), el('span', 'hand', lesson.notiz));
+        side.append(note);
+      }
+      if (side.childNodes.length > 0) row.append(side);
       return row;
     }));
   }
@@ -2241,6 +2362,35 @@ function renderLessonDetail(lessons) {
     else if (record.status === 'ausgefallen') status = cancelText(record);
     else status = `stattgefunden, ${record.dauer} Minuten${record.thema ? `, Thema: ${record.thema}` : ''}`;
     if (lesson.sonder) status = `${sonderNote(lesson.sonder)} · ${status}`;
+
+    const carry = lessonCarry(lesson);
+    if (carry.notiz) status = `${status} · Notiz von letzter Stunde: ${carry.notiz}`;
+
+    if (!record || record.status === 'stattgefunden') {
+      const noteInput = el('input', 'lesson-topic lesson-note');
+      noteInput.type = 'text';
+      noteInput.placeholder = 'Notiz fürs nächste Mal';
+      const existing = findNotiz(student.id, lesson.datum, lesson.zeit);
+      noteInput.value = existing ? existing.text : '';
+      noteInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') noteInput.blur();
+      });
+      noteInput.addEventListener('change', () => saveNotiz(student.id, lesson.datum, lesson.zeit, noteInput.value.trim()));
+      buttons.push(noteInput);
+    }
+
+    if (record && record.status === 'stattgefunden' && isPrivat && student.hausaufgaben) {
+      const haLabel = el('label', 'check-label');
+      const haBox = el('input');
+      haBox.type = 'checkbox';
+      haBox.checked = record.hausaufgaben !== false;
+      haBox.addEventListener('change', () => persist(() => {
+        const target = stunden().find((r) => r.id === record.id);
+        if (target) target.hausaufgaben = haBox.checked;
+      }));
+      haLabel.append(haBox, 'Hausaufgaben aufgegeben');
+      buttons.push(haLabel);
+    }
 
     if (record) {
       if (record.status === 'stattgefunden') buttons.push(topicInput(record));
@@ -3092,6 +3242,7 @@ function updateArt() {
   const isPrivat = form.elements.art.value === 'privat';
   privatFields.hidden = !isPrivat;
   plattformFields.hidden = isPrivat;
+  if (!editingId) form.elements.hausaufgaben.checked = !isPrivat;
 }
 
 function updatePrice() {
@@ -3184,6 +3335,7 @@ function fillForm(student) {
   f.klasse.value = student.klasse ?? '';
   f.art.value = student.art;
   updateArt();
+  f.hausaufgaben.checked = Boolean(student.hausaufgaben);
   if (student.art === 'privat') {
     f.dauer.value = String(student.dauer);
     f.rechnungAn.value = student.rechnungAn || '';
@@ -3221,6 +3373,7 @@ function readForm() {
     rechnungAn: art === 'privat' ? f.rechnungAn.value.trim() : null,
     nachholStart: art === 'plattform' ? Number(f.nachholStart.value) : 0,
     termine: readTermine(),
+    hausaufgaben: f.hausaufgaben.checked,
     farbe: formColor || nextFreeColor(),
   };
 }
@@ -3302,9 +3455,69 @@ function archivedRow(student) {
   return row;
 }
 
+function studentCard(student) {
+  const card = el('article', 'student-card');
+  card.style.setProperty('--c', student.farbe);
+  card.tabIndex = 0;
+  card.addEventListener('click', () => openForm(student));
+  card.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') openForm(student);
+  });
+
+  const head = el('div', 'sc-head');
+  const info = el('div', 'sc-info');
+  const meta = [student.klasse ? `Klasse ${student.klasse}` : null, student.schulform, regionName(student)]
+    .filter(Boolean)
+    .join(' · ');
+  info.append(el('div', 'sc-name', fullName(student)), el('div', 'student-meta sc-meta', meta));
+  head.append(info);
+
+  if (student.art === 'plattform') {
+    const stand = nachholStand(student);
+    const num = el('div', `sc-num${stand === 0 ? ' zero' : ''}`);
+    num.append(el('strong', null, nachholNumber(stand)), el('small', null, stand < 0 ? 'im Voraus' : 'nachholen'));
+    head.append(num);
+  }
+
+  const times = el('div', 'sc-times', student.termine.map((t) => `${DAYS[t.tag]} ${t.zeit}`).join(', ') || 'kein Termin');
+  if (student.art !== 'plattform') {
+    times.append(el('span', 'sc-times-meta', ` · ${student.dauer} Min · ${formatEuro(priceFor(student.dauer))}`));
+  }
+
+  const tags = el('div', 'sc-tags');
+  if (student.hausaufgaben) tags.append(el('span', 'tag tag-ha', 'Hausaufgaben'));
+  const exam = upcomingExams().find((e) => e.studentId === student.id);
+  if (exam && daysUntil(exam) <= 14) tags.append(el('span', 'tag tag-alert', `${exam.art} ${countdownText(daysUntil(exam))}`));
+  const pause = pauseNote(student);
+  if (pause) tags.append(el('span', 'tag tag-alert', pause));
+  const reg = regularity(student, '3m').ohne;
+  if (reg !== null) tags.append(el('span', 'tag', `${reg} % regelmäßig`));
+
+  card.append(head, times);
+  if (tags.childNodes.length > 0) card.append(tags);
+  return card;
+}
+
 function renderStudents() {
   const active = activeStudents();
-  studentList.replaceChildren(...active.map(studentRow));
+  const plattform = active.filter((s) => s.art === 'plattform');
+  const privat = active.filter((s) => s.art !== 'plattform');
+  const groups = plattform.length > 0 ? [['Plattform', plattform], ['Privat', privat]] : [[null, privat]];
+
+  const nodes = [];
+  groups.forEach(([label, list]) => {
+    if (list.length === 0) return;
+    if (label) {
+      const headRow = el('div', 'sc-group-head');
+      headRow.append(el('span', 'sc-group-title', label), el('span', 'student-meta', list.length === 1 ? '1 Schüler' : `${list.length} Schüler`));
+      nodes.push(headRow);
+    }
+    const grid = el('div', 'student-cards');
+    grid.append(...list.map(studentCard));
+    nodes.push(grid);
+  });
+
+  studentList.replaceChildren(...nodes);
   studentList.hidden = active.length === 0;
   studentsEmpty.hidden = active.length > 0;
 }
@@ -3701,6 +3914,15 @@ plattformToggle.addEventListener('change', async () => {
   renderPlattformSettings();
 });
 
+document.getElementById('notify-test').addEventListener('click', (event) => {
+  window.api.notify('Testmitteilung', 'So sehen die Hausaufgaben-Erinnerungen aus.');
+  event.currentTarget.textContent = 'Gesendet!';
+  const btn = event.currentTarget;
+  setTimeout(() => {
+    btn.textContent = 'Testmitteilung senden';
+  }, 2000);
+});
+
 backupNowBtn.addEventListener('click', async () => {
   try {
     await renderBackupInfo(await window.api.backupNow());
@@ -4048,9 +4270,10 @@ detailButtons.forEach((btn) => {
 });
 
 setInterval(() => {
+  checkHomeworkReminders();
   if (currentPage === 'overview' && !todoList.contains(document.activeElement)) openOverview();
   else publishSummary();
-}, 60000);
+}, 30000);
 
 async function init() {
   try {
@@ -4074,6 +4297,7 @@ async function init() {
   applyTheme();
   openOverview();
   refreshHolidays();
+  checkHomeworkReminders();
 }
 
 init();

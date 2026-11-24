@@ -1849,3 +1849,241 @@ html, body, .layout {
 .past-block .exam-row:last-child{border-bottom:none}
 .tl-irrelevant{background:color-mix(in srgb,var(--c) 16%,transparent);border:1px solid color-mix(in srgb,var(--c) 35%,transparent)}
 .detail-buttons .btn[hidden]{display:none}
+
+
+.student-list-cards {
+  border-top: none;
+}
+
+.sc-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid var(--ink);
+}
+
+.sc-group-head:first-child {
+  margin-top: 0;
+}
+
+.sc-group-title {
+  font-family: var(--serif);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.student-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.student-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px 16px 22px;
+  border: 1px solid var(--ink);
+  border-left: 7px solid var(--c);
+  background: var(--card);
+  cursor: pointer;
+  outline: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.student-card:hover,
+.student-card:focus-visible {
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.sc-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.sc-name {
+  font-family: var(--serif);
+  font-size: 28px;
+  line-height: 1.05;
+}
+
+.sc-meta {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.sc-num {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1;
+}
+
+.sc-num strong {
+  font-family: var(--serif);
+  font-size: 34px;
+  font-weight: 400;
+  color: var(--pink);
+}
+
+.sc-num.zero strong {
+  color: var(--muted);
+}
+
+.sc-num small {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.sc-times {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.sc-times-meta {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.sc-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-ha {
+  border-color: var(--ink);
+  background: var(--lime);
+}
+
+.tag-alert {
+  border-color: var(--pink);
+  color: var(--pink);
+}
+
+.ha-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.ha-field input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--ink);
+}
+
+.ha-field strong {
+  display: block;
+  font-size: 15px;
+}
+
+.ha-field small {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.today-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.today-side .today-status {
+  margin-left: 0;
+}
+
+.ha-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px 5px 8px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: var(--lime);
+  box-shadow: 2px 2px 0 var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ha-check.done {
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+}
+
+.ha-check.done .ha-text {
+  text-decoration: line-through;
+}
+
+.ha-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+  background: var(--paper);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.today-note {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 340px;
+  text-align: right;
+}
+
+.today-note-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+
+.today-note .hand {
+  color: var(--pink);
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.lesson-note {
+  min-width: 220px;
+}
+
+.notify-test {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.notify-test .hint {
+  flex: 1 1 320px;
+  margin: 0;
+}

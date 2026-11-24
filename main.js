@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain, dialog, shell, Notification } = require('electron');
 
 const POPOVER_WIDTH = 380;
 const POPOVER_HEIGHT = 560;
@@ -364,6 +364,12 @@ ipcMain.handle('get-autostart', () => getAutostart());
 ipcMain.handle('set-autostart', (event, enabled) => setAutostart(enabled));
 ipcMain.handle('load-holidays', (event, codes) => loadHolidays(codes));
 ipcMain.on('summary', (event, summary) => updateSummary(summary));
+ipcMain.on('notify', (event, { title, body }) => {
+  if (!Notification.isSupported()) return;
+  const note = new Notification({ title, body });
+  note.on('click', openMainWindow);
+  note.show();
+});
 ipcMain.handle('get-summary', () => lastSummary);
 ipcMain.handle('pick-files', () => pickFiles());
 ipcMain.handle('open-file', (event, file) => shell.openPath(attachPath(file)));

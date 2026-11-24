@@ -86,7 +86,7 @@
       </section>
 
       <section class="page" id="page-students" hidden>
-        <div class="student-list" id="student-list"></div>
+        <div class="student-list student-list-cards" id="student-list"></div>
         <div class="empty" id="students-empty">
           Noch keine Schüler angelegt.
           <span class="hand">Leg deinen ersten an!</span>
@@ -443,9 +443,13 @@
               <span class="switch"></span>
               <span class="switch-text">
                 <strong>Beim Anmelden starten</strong>
-                <small>Die App startet unauffällig mit 📚 in der Menüleiste, ohne großes Fenster.</small>
+                <small>Die App startet unauffällig mit „N.“ in der Menüleiste, ohne großes Fenster.</small>
               </span>
             </label>
+            <div class="notify-test">
+              <p class="hint">Mitteilungen für die Hausaufgaben stellst du in den Systemeinstellungen unter Mitteilungen ein. Die App erscheint dort erst nach ihrer ersten Mitteilung.</p>
+              <button type="button" class="btn btn-small" id="notify-test">Testmitteilung senden</button>
+            </div>
           </fieldset>
 
           <fieldset class="form-section">
@@ -672,6 +676,14 @@
                   <input type="number" name="nachholStart" min="0" value="0">
                 </label>
               </div>
+
+              <label class="ha-field">
+                <input type="checkbox" name="hausaufgaben">
+                <span>
+                  <strong>Bekommt Hausaufgaben</strong>
+                  <small>10 Minuten vor Ende jeder Stunde kommt eine Erinnerung</small>
+                </span>
+              </label>
             </fieldset>
 
             <fieldset class="form-section">
