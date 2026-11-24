@@ -1374,6 +1374,16 @@ function openForm(student = null, tab = 'overview') {
   showPage('student-form');
 }
 
+function hasLessonIn(student, holiday) {
+  const weekdays = lessonDays(student);
+  if (weekdays.length === 0) return false;
+  const end = parseDay(holiday.end);
+  for (let day = parseDay(holiday.start); day <= end; day = addDays(day, 1)) {
+    if (weekdays.includes(day.getDay())) return true;
+  }
+  return false;
+}
+
 function holidayTodos() {
   const today = startOfDay(new Date());
   const todayKey = dayKey(today);
@@ -1386,6 +1396,7 @@ function holidayTodos() {
     list.forEach((holiday) => {
       if (holiday.end < todayKey) return;
       if (holidayStatus(student, holiday) !== 'offen') return;
+      if (!hasLessonIn(student, holiday)) return;
 
       const from = parseDay(holiday.start);
       const lastLesson = lastLessonBefore(student, from);
