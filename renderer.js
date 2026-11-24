@@ -3412,11 +3412,12 @@ function renderTimeline() {
         const visibleFrom = from < start ? start : from;
         const visibleTo = to > end ? end : to;
         const status = holidayStatus(student, holiday);
-        const bar = el('button', `tl-bar status-${status}`);
+        const relevant = hasLessonIn(student, holiday);
+        const bar = el('button', relevant ? `tl-bar status-${status}` : 'tl-bar tl-irrelevant');
         bar.style.setProperty('--c', student.farbe);
         bar.style.left = `${percent(visibleFrom)}%`;
         bar.style.width = `${percent(visibleTo) - percent(visibleFrom)}%`;
-        bar.title = `${holiday.name}: ${longDate(from)} bis ${longDate(addDays(to, -1))}`;
+        bar.title = `${holiday.name}: ${longDate(from)} bis ${longDate(addDays(to, -1))}${relevant ? '' : ', keine Stunde betroffen'}`;
         bar.setAttribute('aria-label', `${fullName(student)}, ${bar.title}`);
         if (selected && selected.studentId === student.id && selected.key === holidayKey(holiday)) {
           bar.classList.add('selected');
@@ -3460,10 +3461,15 @@ function renderDetail() {
   detailDates.textContent = `${longDate(from)} bis ${longDate(to)}${lastLesson ? ` · letzte Stunde vorher: ${longDate(lastLesson)}` : ''}`;
 
   const status = holidayStatus(student, holiday);
-  detailButtons.forEach((btn) => btn.classList.toggle('chosen', btn.dataset.status === status));
+  const relevant = hasLessonIn(student, holiday);
+  if (!relevant) detailDates.textContent = `${longDate(from)} bis ${longDate(to)} · keine Stunde betroffen, du musst nichts entscheiden`;
+  detailButtons.forEach((btn) => {
+    btn.classList.toggle('chosen', btn.dataset.status === status);
+    btn.hidden = !relevant;
+  });
 
   const others = sameRegion(student);
-  detailAllRow.hidden = others.length === 0;
+  detailAllRow.hidden = others.length === 0 || !relevant;
   detailAllLabel.textContent = `Für alle aus ${regionName(student)} übernehmen (${others.map((s) => s.vorname).join(', ')})`;
 }
 

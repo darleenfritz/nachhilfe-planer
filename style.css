@@ -1847,3 +1847,5 @@ html, body, .layout {
 .past-block .exam-list{border-top:1px solid var(--ink);margin-bottom:0}
 .past-block .exam-row{grid-template-columns:52px minmax(0,1fr) auto;padding:8px 0}
 .past-block .exam-row:last-child{border-bottom:none}
+.tl-irrelevant{background:color-mix(in srgb,var(--c) 16%,transparent);border:1px solid color-mix(in srgb,var(--c) 35%,transparent)}
+.detail-buttons .btn[hidden]{display:none}
