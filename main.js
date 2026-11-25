@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const { execFile } = require('child_process');
 const { app, BrowserWindow, Tray, Menu, nativeImage, screen, ipcMain, dialog, shell, Notification } = require('electron');
 
 const POPOVER_WIDTH = 380;
@@ -364,12 +365,48 @@ ipcMain.handle('get-autostart', () => getAutostart());
 ipcMain.handle('set-autostart', (event, enabled) => setAutostart(enabled));
 ipcMain.handle('load-holidays', (event, codes) => loadHolidays(codes));
 ipcMain.on('summary', (event, summary) => updateSummary(summary));
-ipcMain.on('notify', (event, { title, body }) => {
-  if (!Notification.isSupported()) return;
-  const note = new Notification({ title, body });
-  note.on('click', openMainWindow);
-  note.show();
-});
+const openNotes = new Set();
+
+function appleScriptText(text) {
+  return `"${String(text).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function notifyFallback(title, body) {
+  return new Promise((resolve) => {
+    execFile('osascript', ['-e', `display notification ${appleScriptText(body)} with title ${appleScriptText(title)}`], (error) => {
+      resolve(error ? { ok: false, via: 'skript', error: error.message } : { ok: true, via: 'skript' });
+    });
+  });
+}
+
+function notify(title, body) {
+  if (!Notification.isSupported()) return notifyFallback(title, body);
+  return new Promise((resolve) => {
+    const note = new Notification({ title, body });
+    let done = false;
+    const finish = (result) => {
+      if (done) return;
+      done = true;
+      resolve(result);
+    };
+    openNotes.add(note);
+    note.on('show', () => finish({ ok: true, via: 'app' }));
+    note.on('failed', async (event, error) => {
+      openNotes.delete(note);
+      const fallback = await notifyFallback(title, body);
+      finish({ ...fallback, appError: String(error) });
+    });
+    note.on('click', () => {
+      openNotes.delete(note);
+      openMainWindow();
+    });
+    note.on('close', () => openNotes.delete(note));
+    note.show();
+    setTimeout(() => finish({ ok: true, via: 'unbekannt' }), 4000);
+  });
+}
+
+ipcMain.handle('notify', (event, { title, body }) => notify(title, body));
 ipcMain.handle('get-summary', () => lastSummary);
 ipcMain.handle('pick-files', () => pickFiles());
 ipcMain.handle('open-file', (event, file) => shell.openPath(attachPath(file)));

@@ -18,5 +18,5 @@ contextBridge.exposeInMainWorld('api', {
   backupNow: () => ipcRenderer.invoke('backup-now'),
   chooseBackupFolder: () => ipcRenderer.invoke('choose-backup-folder'),
   openBackupFolder: () => ipcRenderer.invoke('open-backup-folder'),
-  notify: (title, body) => ipcRenderer.send('notify', { title, body }),
+  notify: (title, body) => ipcRenderer.invoke('notify', { title, body }),
 });

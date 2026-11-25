@@ -3914,13 +3914,16 @@ plattformToggle.addEventListener('change', async () => {
   renderPlattformSettings();
 });
 
-document.getElementById('notify-test').addEventListener('click', (event) => {
-  window.api.notify('Testmitteilung', 'So sehen die Hausaufgaben-Erinnerungen aus.');
-  event.currentTarget.textContent = 'Gesendet!';
-  const btn = event.currentTarget;
-  setTimeout(() => {
-    btn.textContent = 'Testmitteilung senden';
-  }, 2000);
+document.getElementById('notify-test').addEventListener('click', async () => {
+  const result = await window.api.notify('Testmitteilung', 'So sehen die Hausaufgaben-Erinnerungen aus.');
+  const lines = [];
+  if (result.via === 'app') lines.push('macOS hat die Mitteilung der App angenommen.');
+  if (result.via === 'unbekannt') lines.push('macOS hat nicht geantwortet, ob die Mitteilung angezeigt wurde.');
+  if (result.appError) lines.push(`macOS hat die Mitteilung der App abgelehnt: ${result.appError}`);
+  if (result.via === 'skript') {
+    lines.push(result.ok ? 'Die Mitteilung wurde ersatzweise über den Skripteditor geschickt.' : `Auch der Ersatzweg hat nicht geklappt: ${result.error}`);
+  }
+  showAlert(lines.join(' '));
 });
 
 backupNowBtn.addEventListener('click', async () => {
